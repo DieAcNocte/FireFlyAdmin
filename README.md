@@ -111,3 +111,9 @@ npx tsx scripts/test-e2e.ts
 - 服务只绑定 `127.0.0.1`，不要暴露到公网；
 - `data/` 已被 gitignore，项目路径与 Token 不会进入版本库；
 - 删除操作（文章/动态/图片/相册）只删文件，已提交过的内容可通过博客仓库的 git 历史找回。
+
+## 许可证
+
+本项目基于 [MIT](./LICENSE) 许可证开源。
+
+Copyright (c) 2026 DieAcNocte

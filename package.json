@@ -2,6 +2,7 @@
 	"name": "firefly-admin",
 	"version": "0.1.2-beta",
 	"private": true,
+	"license": "MIT",
 	"type": "module",
 	"description": "Firefly 博客本地管理后台",
 	"engines": {
