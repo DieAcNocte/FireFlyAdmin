@@ -12,6 +12,7 @@
 		"dev:server": "tsx watch server/index.ts",
 		"dev:web": "vite",
 		"build": "vite build",
+		"build:exe": "node scripts/build-exe.mjs",
 		"start": "tsx server/index.ts",
 		"start:bun": "bun server/index.ts",
 		"type-check": "tsc --noEmit"
@@ -36,7 +37,9 @@
 		"codemirror": "^6.0.1",
 		"concurrently": "^9.2.0",
 		"element-plus": "^2.10.0",
+		"esbuild": "^0.28.2",
 		"markdown-it": "^14.1.0",
+		"postject": "1.0.0-alpha.6",
 		"vite": "^6.3.5",
 		"vue": "^3.5.17",
 		"vue-codemirror": "^6.1.1",

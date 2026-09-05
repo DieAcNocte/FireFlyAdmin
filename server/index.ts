@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { ROOT_DIR } from "./settings.js";
@@ -10,6 +11,20 @@ import { mediaRoutes } from "./routes/media.js";
 import { configRoutes } from "./config/routes.js";
 import { gitRoutes } from "./routes/gitRoutes.js";
 import { blogRoutes } from "./routes/blogRoutes.js";
+
+const SEA_BUILD = typeof __SEA_BUILD !== "undefined" && __SEA_BUILD === "true";
+
+/** SEA 模式下前端资源内嵌在 EXE 中，通过 node:sea 读取（main 内初始化） */
+let seaApi: { getRawAsset(key: string): ArrayBuffer } | null = null;
+
+function readSeaAsset(key: string): Buffer | null {
+	if (!seaApi) return null;
+	try {
+		return Buffer.from(seaApi.getRawAsset(key));
+	} catch {
+		return null;
+	}
+}
 
 const app = new Hono();
 
@@ -31,7 +46,7 @@ app.get("/api/health", (c) => c.json({ ok: true, time: Date.now() }));
 // 未匹配的 API 路径返回 JSON 404（而不是回退到 SPA）
 app.all("/api/*", (c) => c.json({ error: "接口不存在" }, 404));
 
-// 生产模式：托管前端构建产物（SPA 回退到 index.html）
+// 前端托管：优先磁盘 dist/（开发模式），SEA 模式回退到内嵌资源（SPA 回退到 index.html）
 const DIST = path.join(ROOT_DIR, "dist");
 const MIME: Record<string, string> = {
 	".html": "text/html; charset=utf-8",
@@ -46,19 +61,49 @@ const MIME: Record<string, string> = {
 
 app.get("*", (c) => {
 	const urlPath = decodeURIComponent(c.req.path);
-	let filePath = path.join(DIST, urlPath.replace(/^\/+/, ""));
+	const rel = urlPath.replace(/^\/+/, "");
+	let filePath = path.join(DIST, rel);
 	if (!filePath.startsWith(DIST)) return c.text("Forbidden", 403);
 	if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
 		filePath = path.join(DIST, "index.html");
 	}
-	if (!fs.existsSync(filePath)) {
-		return c.text("前端尚未构建，请先运行 pnpm build（开发模式请访问 http://localhost:5176）", 404);
+	let data: Buffer | null = null;
+	let mime: string | undefined;
+	if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+		data = fs.readFileSync(filePath);
+		mime = MIME[path.extname(filePath).toLowerCase()];
+	} else if (seaApi) {
+		const key = "dist/" + (rel || "index.html");
+		data = readSeaAsset(key) ?? readSeaAsset("dist/index.html");
+		mime = MIME[path.extname(rel.split("?")[0] || ".html").toLowerCase()] ?? "text/html; charset=utf-8";
 	}
-	const mime = MIME[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
-	return c.body(fs.readFileSync(filePath), 200, { "Content-Type": mime });
+	if (!data) {
+		return c.text("前端资源未找到：请先运行 pnpm build（开发模式请访问 http://localhost:5176）", 404);
+	}
+	return c.body(new Uint8Array(data), 200, { "Content-Type": mime ?? "application/octet-stream" });
 });
 
-const PORT = Number(process.env.PORT || 5175);
-serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT }, (info) => {
-	console.log(`[firefly-admin] API 服务已启动: http://127.0.0.1:${info.port}`);
-});
+async function main() {
+	if (SEA_BUILD) {
+		try {
+			seaApi = (await import("node:sea")) as unknown as { getRawAsset(key: string): ArrayBuffer };
+		} catch {
+			seaApi = null;
+		}
+	}
+	const PORT = Number(process.env.PORT || 5175);
+	serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT }, (info) => {
+		console.log(`[firefly-admin] 管理后台已启动: http://127.0.0.1:${info.port}`);
+		// 双击 EXE 启动时自动打开浏览器
+		if (SEA_BUILD && process.env.NO_OPEN !== "1") {
+			const url = `http://127.0.0.1:${info.port}`;
+			if (process.platform === "win32") {
+				spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+			} else {
+				spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
+			}
+		}
+	});
+}
+
+main();

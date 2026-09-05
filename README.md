@@ -59,6 +59,21 @@ pnpm build
 pnpm start:bun
 ```
 
+## 打包 EXE（Windows 单文件启动器）
+
+```bash
+pnpm build:exe
+```
+
+产物为项目根目录下的 **FireflyAdmin.exe**：
+
+- 前端资源全部**内嵌**进 EXE，双击即启动服务并自动打开 `http://127.0.0.1:5175`（无需安装 Node）
+- 端口可用环境变量 `PORT` 覆盖；设 `NO_OPEN=1` 则不自动开浏览器
+- `sharp`（原生模块）无法嵌入 EXE，运行时从 EXE 同目录的 `node_modules` 自动加载——
+  **把 EXE 放在本管理后台项目目录下双击**，AVIF 转换等功能完整可用；放到别处则上传时请关闭「转 AVIF」
+- 配置与 Token 数据存放在 EXE 同目录的 `data/` 下，随 EXE 走
+- 基于 Node 官方 SEA 方案（esbuild 打包 + postject 注入），首次运行无任何提示窗口，日志在启动它的控制台中
+
 首次启动会自动预置一个指向 `D:\Documents\ZcodeProject\Yoimiya` 的项目；
 在「项目管理」中可以新增/编辑/删除/切换项目（适配任意 Firefly 类博客目录）。
 

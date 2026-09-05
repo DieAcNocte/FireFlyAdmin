@@ -1,10 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const ROOT_DIR = path.resolve(__dirname, "..");
+/**
+ * 项目根目录：
+ * - SEA 打包模式（FireflyAdmin.exe）：EXE 所在目录（数据/资源与 EXE 同级）
+ * - 脚本模式（pnpm dev / pnpm start）：运行时工作目录（pnpm 脚本固定为项目根）
+ */
+function resolveRootDir(): string {
+	if (typeof __SEA_BUILD !== "undefined" && __SEA_BUILD === "true") {
+		return path.dirname(process.execPath);
+	}
+	return path.resolve(process.cwd());
+}
+
+export const ROOT_DIR = resolveRootDir();
 
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");

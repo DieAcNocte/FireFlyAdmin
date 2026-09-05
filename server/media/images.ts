@@ -1,8 +1,27 @@
 import fs from "node:fs";
 import path from "node:path";
-import sharp from "sharp";
 import { activeDirs, ensureInside, projectDirs } from "../paths.js";
-import type { ProjectProfile } from "../settings.js";
+import { ROOT_DIR, type ProjectProfile } from "../settings.js";
+
+/** sharp 为原生模块，无法嵌入 SEA 单文件 EXE：运行时懒加载（优先常规解析，回退到项目根 node_modules） */
+let sharpModule: any | null | undefined;
+async function getSharp(): Promise<any | null> {
+	if (sharpModule !== undefined) return sharpModule;
+	try {
+		sharpModule = (await import("sharp")).default ?? (await import("sharp"));
+		return sharpModule;
+	} catch {
+		/* 常规解析失败 */
+	}
+	try {
+		const { createRequire } = await import("node:module");
+		const req = createRequire(path.join(ROOT_DIR, "package.json"));
+		sharpModule = req("sharp");
+	} catch {
+		sharpModule = null;
+	}
+	return sharpModule;
+}
 
 export type ImageTarget = "wallpaper-desktop" | "wallpaper-mobile" | "post-images" | "gallery";
 
@@ -77,6 +96,7 @@ export async function saveImages(
 	const dir = targetDir(target, albumId);
 	fs.mkdirSync(dir, { recursive: true });
 	const saved: string[] = [];
+	let sharp: any = undefined;
 	for (const f of files) {
 		const clean = sanitizeName(f.name);
 		const ext = path.extname(clean).toLowerCase();
@@ -84,6 +104,12 @@ export async function saveImages(
 		let outName = clean;
 		let data = f.buffer;
 		if (convertAvif && ext !== ".avif") {
+			if (sharp === undefined) {
+				sharp = await getSharp();
+				if (!sharp) {
+					throw new Error("未找到 sharp，无法转换 AVIF。请在管理后台目录保留 node_modules，或关闭「转 AVIF」后上传原图。");
+				}
+			}
 			data = await sharp(f.buffer).avif({ quality: 80 }).toBuffer();
 			outName = `${stem}.avif`;
 		}
