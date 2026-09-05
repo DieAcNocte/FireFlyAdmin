@@ -171,6 +171,39 @@ async function main() {
 
 function openBrowser(url: string): void {
 	if (process.platform === "win32") {
+		openAppWindow(url);
+	} else {
+		spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
+	}
+}
+
+/** 在独立应用窗口（Edge/Chrome App 模式，无地址栏无标签页）中打开；找不到则回退默认浏览器 */
+function openAppWindow(url: string): void {
+	const candidates = [
+		"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+		"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+		"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+		"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+		process.env.LOCALAPPDATA
+			? path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "Application", "chrome.exe")
+			: "",
+	].filter(Boolean);
+	for (const exe of candidates) {
+		if (fs.existsSync(exe)) {
+			const child = spawn(exe, [`--app=${url}`, "--window-size=1440,900"], {
+				detached: true,
+				stdio: "ignore",
+			});
+			child.on("error", () => openDefaultBrowser(url));
+			child.unref();
+			return;
+		}
+	}
+	openDefaultBrowser(url);
+}
+
+function openDefaultBrowser(url: string): void {
+	if (process.platform === "win32") {
 		spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
 	} else {
 		spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
