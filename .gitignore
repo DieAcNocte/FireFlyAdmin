@@ -17,6 +17,9 @@ data/
 # logs
 *.log
 
+# local scratch / personal notes (never commit)
+local/
+
 # os
 .DS_Store
 Thumbs.db
