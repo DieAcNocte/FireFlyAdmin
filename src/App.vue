@@ -1,5 +1,7 @@
 <template>
-	<el-container class="layout">
+	<!-- 首次使用：初始设置向导 -->
+	<SetupWizard v-if="showWizard" @finished="onWizardFinished" />
+	<el-container v-else class="layout">
 		<el-aside width="210px" class="aside">
 			<div class="brand">
 				<span class="brand-icon">🔥</span>
@@ -83,19 +85,47 @@ import { ElMessage } from "element-plus";
 import { projectStore, activeProject, loadProjects, switchProject } from "./stores/project";
 import { api } from "./api";
 import { applyColorMode } from "./theme";
+import SetupWizard from "./views/SetupWizard.vue";
 
 const route = useRoute();
 const devRunning = ref(false);
+const showWizard = ref(false);
 
 onMounted(async () => {
 	await loadProjects();
+	await applySetupState();
 	refreshDev();
-	// 界面配色跟随应用设置
-	api.app
-		.prefs()
-		.then((p) => applyColorMode(p.colorMode))
-		.catch(() => {});
 });
+
+/** 读取偏好与向导状态：未完成初始设置时显示向导 */
+async function applySetupState() {
+	try {
+		const st = await api.setup.status();
+		if (!st.setupCompleted) {
+			showWizard.value = true;
+			return;
+		}
+	} catch {
+		/* 状态读取失败则按已完成处理 */
+	}
+	try {
+		const p = await api.app.prefs();
+		applyColorMode(p.colorMode);
+	} catch {
+		/* ignore */
+	}
+}
+
+async function onWizardFinished() {
+	showWizard.value = false;
+	try {
+		const p = await api.app.prefs();
+		applyColorMode(p.colorMode);
+	} catch {
+		/* ignore */
+	}
+	ElMessage.success("初始设置完成，欢迎使用！");
+}
 
 async function refreshDev() {
 	try {

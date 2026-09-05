@@ -49,6 +49,8 @@ export interface Settings {
 	projects: ProjectProfile[];
 	activeProjectId: string;
 	preferences: AppPreferences;
+	/** 初始设置向导是否已完成（旧配置文件迁移时自动置为 true） */
+	setupCompleted: boolean;
 }
 
 const DEFAULT_PREFERENCES = (): AppPreferences => ({
@@ -70,7 +72,7 @@ const DEFAULT_SETTINGS = (): Settings => {
 		authorEmail: "",
 		messageTemplate: "feat: 更新博客内容",
 	};
-	return { projects: [yoimiya], activeProjectId: yoimiya.id, preferences: DEFAULT_PREFERENCES() };
+	return { projects: [yoimiya], activeProjectId: yoimiya.id, preferences: DEFAULT_PREFERENCES(), setupCompleted: false };
 };
 
 let cached: Settings | null = null;
@@ -86,8 +88,9 @@ export function loadSettings(): Settings {
 		if (!parsed.projects.some((p) => p.id === parsed.activeProjectId)) {
 			parsed.activeProjectId = parsed.projects[0].id;
 		}
-		// 旧版本设置文件迁移：补齐 preferences
+		// 旧版本设置文件迁移：补齐 preferences 与 setupCompleted（已有配置视为已完成向导）
 		parsed.preferences = { ...DEFAULT_PREFERENCES(), ...(parsed.preferences ?? {}) };
+		if (typeof parsed.setupCompleted !== "boolean") parsed.setupCompleted = true;
 		cached = parsed;
 	} catch {
 		cached = DEFAULT_SETTINGS();
@@ -109,6 +112,16 @@ export function getActiveProject(): ProjectProfile {
 
 export function getPreferences(): AppPreferences {
 	return loadSettings().preferences;
+}
+
+export function isSetupCompleted(): boolean {
+	return loadSettings().setupCompleted;
+}
+
+export function setSetupCompleted(done: boolean): void {
+	const s = loadSettings();
+	s.setupCompleted = done;
+	saveSettings(s);
 }
 
 export function savePreferences(input: Partial<AppPreferences>): AppPreferences {

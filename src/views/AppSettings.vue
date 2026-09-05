@@ -37,6 +37,21 @@
 			</el-form>
 		</el-card>
 
+		<el-card shadow="never" class="page-card">
+			<template #header>
+				<div class="card-header">
+					<span>初始设置与演示内容</span>
+				</div>
+			</template>
+			<el-button @click="rerunWizard">重新运行初始设置向导</el-button>
+			<FieldTip text="重新打开首次使用的四步向导：界面配色 → 本地文件夹检测 → 远程仓库与密钥 → 同步。不会删除任何项目与配置。" />
+			<el-button type="warning" plain style="margin-left: 12px" @click="resetDemo">重置为默认演示内容</el-button>
+			<FieldTip text="对当前项目的博客执行：清空文章与动态并写入一篇「测试」文章/一条「测试」动态，相册只留一个普通 + 一个加密演示相册，壁纸只保留 D01/M01。⚠ 会清空当前博客已有内容，请务必确认！" />
+			<div class="warn-tip" style="margin-top: 10px">
+				⚠ 「重置为默认演示内容」直接作用于当前激活项目的博客目录，不可在后台撤销（已提交过的内容可通过博客 git 找回）。
+			</div>
+		</el-card>
+
 		<el-card shadow="never">
 			<template #header>
 				<div class="card-header">
@@ -124,6 +139,30 @@ async function stopService() {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	}
 }
+
+async function rerunWizard() {
+	await ElMessageBox.confirm("将重新打开首次使用的四步设置向导（不会删除任何项目与配置），确定？", "重新运行向导", { type: "info" });
+	try {
+		await api.setup.rerun();
+		location.reload();
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	}
+}
+
+async function resetDemo() {
+	await ElMessageBox.confirm(
+		"将对当前项目的博客执行重置：清空全部文章与动态，写入一篇「测试」文章和一条「测试」动态；相册只保留一个普通 + 一个加密演示相册；壁纸只保留 D01 / M01。此操作会清空博客现有内容（已提交过的可通过 git 找回）。确定继续？",
+		"重置为默认演示内容",
+		{ type: "warning", confirmButtonText: "确认重置", cancelButtonText: "取消" }
+	);
+	try {
+		const r = await api.setup.demo();
+		ElMessage.success(`已重置为默认演示内容（${r.post} / ${r.dynamic}）`);
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	}
+}
 </script>
 
 <style scoped>
@@ -131,5 +170,12 @@ async function stopService() {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+}
+
+.warn-tip {
+	color: #909399;
+	font-size: 12px;
+	line-height: 1.6;
+	margin-top: 6px;
 }
 </style>

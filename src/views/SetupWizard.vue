@@ -1,0 +1,433 @@
+<template>
+	<div class="wizard-wrap">
+		<el-card shadow="never" class="wizard-card">
+			<div class="wizard-head">
+				<span class="brand">🔥 FireFly管理后台 · 初始设置</span>
+				<span class="sub">首次使用请完成以下 {{ steps.length }} 步（可随时在「应用设置」重新运行）</span>
+			</div>
+			<el-steps :active="step" align-center finish-status="success" class="steps">
+				<el-step title="界面配色" />
+				<el-step title="本地文件夹" />
+				<el-step title="远程仓库" />
+				<el-step title="同步" />
+			</el-steps>
+
+			<!-- 第 1 步：界面配色 -->
+			<div v-if="step === 0" class="step-body">
+				<p class="hint">选择管理后台的界面配色，选中后立即生效，完成后自动记住。</p>
+				<div class="theme-row">
+					<div class="theme-card" :class="{ active: colorMode === 'light' }" @click="pickTheme('light')">
+						<div class="theme-preview light-preview"><span>浅色模式</span></div>
+					</div>
+					<div class="theme-card" :class="{ active: colorMode === 'dark' }" @click="pickTheme('dark')">
+						<div class="theme-preview dark-preview"><span>深色模式</span></div>
+					</div>
+				</div>
+			</div>
+
+			<!-- 第 2 步：本地文件夹 -->
+			<div v-else-if="step === 1" class="step-body">
+				<p class="hint">设置你要管理的博客本地文件夹（Firefly 类博客，含 src/config 与 src/content）。</p>
+				<el-form label-width="90px">
+					<el-form-item label="项目名称">
+						<el-input v-model="form.name" placeholder="如：我的博客" />
+					</el-form-item>
+					<el-form-item label="文件夹地址" required>
+						<el-input v-model="form.localPath" placeholder="D:\Documents\ZcodeProject\MyBlog">
+							<template #append>
+								<el-button :loading="validating" @click="validate">检测</el-button>
+							</template>
+						</el-input>
+						<div class="result" :class="validation ? (validation.ok ? 'ok' : 'bad') : ''">
+							<template v-if="validation">
+								{{ validation.ok ? "✓ 检测通过，是一个有效的博客目录" : "✗ " + validation.problems.join("；") }}
+							</template>
+						</div>
+					</el-form-item>
+					<el-form-item label="演示内容">
+						<el-checkbox v-model="form.demo">生成默认演示内容</el-checkbox>
+						<div class="warn-tip">
+							⚠ 会清空该博客的文章与动态，只保留一篇「测试」文章、一条「测试」动态、
+							一个普通相册 + 一个加密相册，壁纸只保留 D01 / M01。
+							<b>适合全新空博客；已有内容的博客请勿勾选。</b>
+						</div>
+					</el-form-item>
+				</el-form>
+			</div>
+
+			<!-- 第 3 步：远程仓库 -->
+			<div v-else-if="step === 2" class="step-body">
+				<p class="hint">配置 GitHub 远程仓库（用于发布与同步）。也可以暂时跳过，之后在「项目管理」中配置。</p>
+				<el-form label-width="120px">
+					<el-form-item label="仓库地址">
+						<el-input v-model="form.remoteUrl" placeholder="https://github.com/用户名/仓库.git 或 git@github.com:用户名/仓库.git" />
+					</el-form-item>
+					<el-form-item label="认证方式">
+						<el-radio-group v-model="authMode">
+							<el-radio value="token">Token 密钥</el-radio>
+							<el-radio value="ssh">SSH 密钥</el-radio>
+						</el-radio-group>
+					</el-form-item>
+					<el-form-item v-if="authMode === 'token'" label="Token 密钥">
+						<el-input v-model="form.token" type="password" show-password placeholder="GitHub Personal Access Token（repo 权限）" />
+						<div class="warn-tip">GitHub → Settings → Developer settings → Personal access tokens → 生成经典 Token 并勾选 repo 权限后粘贴到这里。</div>
+					</el-form-item>
+					<el-form-item v-else label="SSH 密钥">
+						<el-button :loading="keygenLoading" @click="genKey">{{ publicKey ? "重新查看公钥" : "生成本机 SSH 密钥" }}</el-button>
+						<div v-if="publicKey" class="ssh-box">
+							<el-input type="textarea" :rows="3" :model-value="publicKey" readonly />
+							<el-button size="small" style="margin-top: 6px" @click="copyPub">复制公钥</el-button>
+							<div class="warn-tip">
+								已生成到 {{ keyPath }}。请把上面的公钥添加到：
+								GitHub → Settings → SSH and GPG keys → New SSH key，保存后点「测试连接」。
+							</div>
+						</div>
+						<div v-else class="warn-tip">没有本机密钥时可一键生成（ed25519），然后把公钥手动添加到 GitHub 账户。</div>
+					</el-form-item>
+					<el-form-item label="连接测试">
+						<el-button :loading="testing" @click="testRemote">测试连接</el-button>
+						<span class="result" :class="testResult ? (testResult.ok ? 'ok' : 'bad') : ''" style="margin-left: 10px">
+							{{ testResult ? testResult.message : "" }}
+						</span>
+					</el-form-item>
+				</el-form>
+				<el-link type="info" @click="skipRemote">暂时跳过，之后在「项目管理」配置 →</el-link>
+			</div>
+
+			<!-- 第 4 步：同步 -->
+			<div v-else-if="step === 3" class="step-body">
+				<p class="hint">
+					从远程仓库拉取内容到本地：本地为空目录时执行克隆；已有仓库时拉取远程更新（仅快进合并，不会覆盖未提交的本地修改）。
+				</p>
+				<el-alert v-if="!form.remoteUrl" type="info" :closable="false" title="第 3 步已跳过：没有配置远程仓库，本步可以跳过，之后可在「项目管理」配置后再同步。" />
+				<template v-else>
+					<el-descriptions :column="2" border>
+						<el-descriptions-item label="仓库">{{ form.remoteUrl }}</el-descriptions-item>
+						<el-descriptions-item label="分支">{{ form.branch || "master" }}</el-descriptions-item>
+					</el-descriptions>
+					<el-button type="primary" :loading="syncing" style="margin-top: 14px" @click="doSync">开始同步</el-button>
+					<div v-if="syncMessage" class="result" :class="syncOk ? 'ok' : 'bad'">{{ syncMessage }}</div>
+				</template>
+			</div>
+
+			<div class="wizard-foot">
+				<el-button v-if="step > 0" @click="step--">上一步</el-button>
+				<el-button v-if="step < 3" type="primary" :disabled="!canNext" :loading="advancing" @click="next">
+					下一步
+				</el-button>
+				<el-button v-else type="success" :loading="finishing" :disabled="!!form.remoteUrl && !syncDone" @click="finish">
+					完成，进入管理后台
+				</el-button>
+			</div>
+		</el-card>
+	</div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
+import { ElMessage } from "element-plus";
+import { api } from "../api";
+import { applyColorMode } from "../theme";
+import { loadProjects } from "../stores/project";
+
+const emit = defineEmits<{ (e: "finished"): void }>();
+
+const steps = ["配色", "目录", "远程", "同步"];
+const step = ref(0);
+const loading = ref(false);
+
+const colorMode = ref<"light" | "dark" | "system">("light");
+const form = ref({
+	name: "我的博客",
+	localPath: "",
+	remoteUrl: "",
+	token: "",
+	branch: "master",
+	demo: false,
+});
+const validation = ref<{ ok: boolean; problems: string[] } | null>(null);
+const authMode = ref<"token" | "ssh">("token");
+const publicKey = ref("");
+const keyPath = ref("");
+const testResult = ref<{ ok: boolean; message: string } | null>(null);
+const syncing = ref(false);
+const syncOk = ref(false);
+const syncMessage = ref("");
+const validating = ref(false);
+const advancing = ref(false);
+const finishing = ref(false);
+const keygenLoading = ref(false);
+const testing = ref(false);
+let projectId = "";
+
+onMounted(async () => {
+	loading.value = true;
+	try {
+		const st = await api.setup.status();
+		form.value.localPath = st.project.localPath || "";
+		form.value.remoteUrl = st.project.remoteUrl || "";
+		form.value.branch = st.project.branch || "master";
+		projectId = st.project.id;
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		loading.value = false;
+	}
+});
+
+const canNext = computed(() => {
+	if (step.value === 0) return true;
+	if (step.value === 1) return !!validation.value?.ok && !!form.value.localPath.trim();
+	if (step.value === 2) return true; // 可跳过
+	return true;
+});
+
+function pickTheme(mode: "light" | "dark") {
+	colorMode.value = mode;
+	applyColorMode(mode);
+}
+
+async function validate() {
+	validating.value = true;
+	try {
+		validation.value = await api.projects.validate(form.value.localPath);
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		validating.value = false;
+	}
+}
+
+/** 第 2 步通过：创建/更新项目并激活；勾选了演示内容则生成 */
+async function ensureProject() {
+	const list = await api.projects.list();
+	const existing = list.projects.find((p) => p.localPath === form.value.localPath.trim());
+	if (existing) {
+		projectId = existing.id;
+		await api.projects.update(existing.id, { name: form.value.name });
+	} else {
+		const created = await api.projects.create({
+			name: form.value.name || "我的博客",
+			localPath: form.value.localPath,
+			branch: form.value.branch,
+		});
+		projectId = created.id;
+	}
+	await api.projects.activate(projectId);
+	await loadProjects();
+	if (form.value.demo) {
+		await api.setup.demo();
+		ElMessage.success("已生成默认演示内容（测试文章/动态、演示相册、D01+M01 壁纸）");
+	}
+}
+
+async function next() {
+	advancing.value = true;
+	try {
+		if (step.value === 1) {
+			await ensureProject();
+		} else if (step.value === 2) {
+			// 保存远程配置（token 留空则保留原值）
+			await api.projects.update(projectId, {
+				remoteUrl: form.value.remoteUrl.trim(),
+				token: form.value.token || undefined,
+				branch: form.value.branch,
+			});
+		}
+		step.value++;
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		advancing.value = false;
+	}
+}
+
+function skipRemote() {
+	form.value.remoteUrl = "";
+	testResult.value = null;
+	step.value = 3;
+}
+
+async function genKey() {
+	keygenLoading.value = true;
+	try {
+		const r = await api.setup.sshKeygen();
+		publicKey.value = r.publicKey;
+		keyPath.value = r.keyPath;
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		keygenLoading.value = false;
+	}
+}
+
+async function copyPub() {
+	try {
+		await navigator.clipboard.writeText(publicKey.value);
+		ElMessage.success("公钥已复制");
+	} catch {
+		ElMessage.warning("复制失败，请手动选择文本复制");
+	}
+}
+
+async function testRemote() {
+	if (!form.value.remoteUrl.trim()) {
+		ElMessage.warning("请先填写仓库地址");
+		return;
+	}
+	testing.value = true;
+	try {
+		const r = await api.setup.testRemote(form.value.remoteUrl.trim(), authMode.value === "token" ? form.value.token : undefined);
+		testResult.value = { ok: true, message: r.message };
+	} catch (e) {
+		testResult.value = { ok: false, message: e instanceof Error ? e.message : String(e) };
+	} finally {
+		testing.value = false;
+	}
+}
+
+async function doSync() {
+	syncing.value = true;
+	syncMessage.value = "";
+	try {
+		const r = await api.setup.sync();
+		syncOk.value = true;
+		syncMessage.value = "✓ " + r.message;
+	} catch (e) {
+		syncOk.value = false;
+		syncMessage.value = "✗ " + (e instanceof Error ? e.message : String(e));
+	} finally {
+		syncing.value = false;
+	}
+}
+
+async function finish() {
+	finishing.value = true;
+	try {
+		await api.setup.complete();
+		await loadProjects();
+		emit("finished");
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		finishing.value = false;
+	}
+}
+</script>
+
+<style scoped>
+.wizard-wrap {
+	min-height: calc(100vh - 40px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.wizard-card {
+	width: 760px;
+	max-width: 96vw;
+}
+
+.wizard-head {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 18px;
+}
+
+.brand {
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.sub {
+	color: #909399;
+	font-size: 12px;
+}
+
+.steps {
+	margin-bottom: 24px;
+}
+
+.step-body {
+	min-height: 220px;
+}
+
+.hint {
+	color: #606266;
+	margin: 0 0 16px;
+}
+
+.theme-row {
+	display: flex;
+	gap: 20px;
+	justify-content: center;
+}
+
+.theme-card {
+	cursor: pointer;
+	border: 3px solid transparent;
+	border-radius: 10px;
+	overflow: hidden;
+	transition: all 0.2s;
+}
+
+.theme-card.active {
+	border-color: var(--el-color-primary);
+}
+
+.theme-preview {
+	width: 220px;
+	height: 130px;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	padding-bottom: 10px;
+	font-weight: 600;
+}
+
+.light-preview {
+	background: linear-gradient(180deg, #ffffff 60%, #f0f2f5);
+	color: #303133;
+	border: 1px solid #e4e7ed;
+}
+
+.dark-preview {
+	background: linear-gradient(180deg, #2b2b31 40%, #141414);
+	color: #e5eaf3;
+}
+
+.result {
+	margin-top: 6px;
+	font-size: 13px;
+}
+
+.result.ok {
+	color: var(--el-color-success);
+}
+
+.result.bad {
+	color: var(--el-color-danger);
+}
+
+.warn-tip {
+	color: #909399;
+	font-size: 12px;
+	line-height: 1.6;
+	margin-top: 6px;
+}
+
+.ssh-box {
+	margin-top: 8px;
+	width: 100%;
+}
+
+.wizard-foot {
+	display: flex;
+	justify-content: center;
+	gap: 12px;
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px solid var(--el-border-color-lighter);
+}
+</style>

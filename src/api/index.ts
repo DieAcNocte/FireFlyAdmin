@@ -224,6 +224,21 @@ export const api = {
 		runtime: () => get<AppRuntime>("/app/runtime"),
 		stop: () => post<{ ok: boolean }>("/app/stop"),
 	},
+	setup: {
+		status: () =>
+			get<{
+				setupCompleted: boolean;
+				project: { id: string; name: string; localPath: string; remoteUrl: string; token: boolean; branch: string };
+				validation: { ok: boolean; problems: string[] };
+				isGitRepo: boolean;
+			}>("/setup/status"),
+		complete: () => post<{ ok: boolean }>("/setup/complete"),
+		rerun: () => post<{ ok: boolean }>("/setup/rerun"),
+		demo: () => post<{ ok: boolean; post: string; dynamic: string }>("/setup/demo"),
+		sshKeygen: () => post<{ ok: boolean; publicKey: string; keyPath: string }>("/setup/ssh-keygen"),
+		testRemote: (url: string, token?: string) => post<{ ok: boolean; message: string }>("/setup/test-remote", { url, token }),
+		sync: () => post<{ ok: boolean; action: "clone" | "pull"; message: string }>("/setup/sync"),
+	},
 };
 
 /** 上传图片（multipart） */

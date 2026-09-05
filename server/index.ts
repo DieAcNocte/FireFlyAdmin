@@ -11,6 +11,7 @@ import { mediaRoutes } from "./routes/media.js";
 import { configRoutes } from "./config/routes.js";
 import { gitRoutes } from "./routes/gitRoutes.js";
 import { blogRoutes } from "./routes/blogRoutes.js";
+import { setupRoutes } from "./routes/setup.js";
 
 const SEA_BUILD = typeof __SEA_BUILD !== "undefined" && __SEA_BUILD === "true";
 
@@ -38,6 +39,7 @@ app.route("/api/configs", configRoutes);
 app.route("/api/gallery", galleryRoutes);
 app.route("/api/git", gitRoutes);
 app.route("/api/blog", blogRoutes);
+app.route("/api/setup", setupRoutes);
 app.route("/api", contentRoutes);
 app.route("/api", mediaRoutes);
 
