@@ -143,18 +143,38 @@ async function main() {
 		});
 	}
 	PORT = Number(process.env.PORT || getPreferences().port || 5175);
-	serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT }, (info) => {
+	const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT }, (info) => {
 		console.log(`[firefly-admin] 管理后台已启动: http://127.0.0.1:${info.port}`);
 		// 双击 EXE 启动时自动打开浏览器
 		if (SEA_BUILD && process.env.NO_OPEN !== "1") {
-			const url = `http://127.0.0.1:${info.port}`;
-			if (process.platform === "win32") {
-				spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
-			} else {
-				spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
-			}
+			openBrowser(`http://127.0.0.1:${info.port}`);
 		}
 	});
+	// 端口被占用等启动失败：给出明确提示（SEA 模式保持窗口可读，避免双击后一闪而过）
+	server.on("error", (err: NodeJS.ErrnoException) => {
+		console.error(`[firefly-admin] 启动失败: ${err.message}`);
+		if (err.code === "EADDRINUSE") {
+			console.error(`端口 ${PORT} 已被占用。`);
+			console.error("• 如果之前已打开过管理后台，说明服务正在运行，直接访问上面的地址即可；现在帮您打开。");
+			console.error("• 否则请关闭占用该端口的程序，或在「应用设置 → 默认端口」修改端口后重新打开。");
+			if (process.env.NO_OPEN !== "1") openBrowser(`http://127.0.0.1:${PORT}`);
+		}
+		if (SEA_BUILD) {
+			console.error("按回车键关闭本窗口…");
+			process.stdin.resume();
+			process.stdin.once("data", () => process.exit(1));
+		} else {
+			process.exit(1);
+		}
+	});
+}
+
+function openBrowser(url: string): void {
+	if (process.platform === "win32") {
+		spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+	} else {
+		spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
+	}
 }
 
 main();
