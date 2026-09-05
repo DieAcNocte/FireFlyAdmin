@@ -98,8 +98,35 @@ run("pnpm", [
 	"NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
 ]);
 
-// 6. 完成
+// 6. 编译原生窗口壳 FireflyAdminApp.exe（WebView2 + 自绘标题栏，双击入口）
+console.log("[6/7] 编译原生窗口壳 (csc)...");
+try {
+	const wvDir = path.join(root, "native", "webview2");
+	const loader = path.join(root, "WebView2Loader.dll");
+	fs.copyFileSync(path.join(wvDir, "runtimes", "win-x64", "native", "WebView2Loader.dll"), loader);
+	fs.copyFileSync(path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.Core.dll"), path.join(root, "Microsoft.Web.WebView2.Core.dll"));
+	fs.copyFileSync(path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.WinForms.dll"), path.join(root, "Microsoft.Web.WebView2.WinForms.dll"));
+	const csc = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe";
+	run(csc, [
+		"/nologo",
+		"/target:winexe",
+		`/out:${path.join(root, "FireflyAdminApp.exe")}`,
+		`/r:${path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.Core.dll")}`,
+		`/r:${path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.WinForms.dll")}`,
+		"/r:System.dll",
+		"/r:System.Core.dll",
+		"/r:System.Drawing.dll",
+		"/r:System.Windows.Forms.dll",
+		"/r:System.Web.Extensions.dll",
+		path.join(root, "scripts", "window", "MainWindow.cs"),
+	]);
+	console.log("窗口壳 FireflyAdminApp.exe 编译完成（独立窗口双击入口）。");
+} catch (e) {
+	console.warn("[warn] 窗口壳编译失败（不影响 FireflyAdmin.exe 服务端）：", e.message);
+}
+
+// 7. 完成
 const sizeMB = (fs.statSync(exeFile).size / 1024 / 1024).toFixed(1);
-console.log(`[6/6] 打包完成: ${exeFile} (${sizeMB} MB)`);
-console.log("双击 FireflyAdmin.exe 即可启动（自动打开 http://127.0.0.1:5175）。");
+console.log(`[7/7] 打包完成: ${exeFile} (${sizeMB} MB)`);
+console.log("双击 FireflyAdminApp.exe = 独立应用窗口（推荐入口）；双击 FireflyAdmin.exe = 控制台模式。");
 console.log("提示：放在本目录下运行可获得完整功能（sharp AVIF 转换 + 已有项目配置）。");

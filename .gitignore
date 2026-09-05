@@ -5,6 +5,11 @@ node_modules/
 dist/
 release/
 FireflyAdmin.exe
+FireflyAdminApp.exe
+WebView2Loader.dll
+Microsoft.Web.WebView2.Core.dll
+Microsoft.Web.WebView2.WinForms.dll
+native/
 
 # runtime data (project list, tokens) — never commit
 data/

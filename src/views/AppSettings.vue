@@ -32,7 +32,7 @@
 						<el-radio value="exit">直接退出</el-radio>
 						<el-radio value="background">转入后台继续运行</el-radio>
 					</el-radio-group>
-					<FieldTip text="仅对 FireflyAdmin.exe 生效：「直接退出」= 关闭 EXE 的控制台窗口即停止服务；「转入后台继续运行」= 关闭窗口后服务自动在后台继续运行（无窗口），可在下方「停止服务」结束。立即生效，无需重启。" />
+					<FieldTip text="仅对 EXE 生效：「直接退出」= 关闭应用窗口（或控制台窗口）时同时停止服务；「转入后台继续运行」= 关闭窗口后服务在后台继续运行，重新双击 FireflyAdminApp.exe 可秒开，也可在下方「停止服务」结束。立即生效，无需重启。" />
 				</el-form-item>
 			</el-form>
 		</el-card>
