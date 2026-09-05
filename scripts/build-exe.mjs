@@ -107,9 +107,24 @@ try {
 	fs.copyFileSync(path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.Core.dll"), path.join(root, "Microsoft.Web.WebView2.Core.dll"));
 	fs.copyFileSync(path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.WinForms.dll"), path.join(root, "Microsoft.Web.WebView2.WinForms.dll"));
 	const csc = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe";
+	// 提取 FireflyAdmin.exe（node.exe）的默认图标作为窗口壳的 exe 资源图标
+	const icoFile = path.join(outDir, "FireflyAdminApp.ico");
+	try {
+		const ps = [
+			`Add-Type -AssemblyName System.Drawing`,
+			`$i = [System.Drawing.Icon]::ExtractAssociatedIcon("${exeFile.replace(/\\/g, "\\\\")}")`,
+			`$fs = [System.IO.File]::Create("${icoFile.replace(/\\/g, "\\\\")}")`,
+			`$i.Save($fs)`,
+			`$fs.Close()`,
+		].join("; ");
+		execFileSync("powershell", ["-NoProfile", "-Command", ps], { stdio: "inherit", cwd: root });
+	} catch (e) {
+		console.warn("[warn] 图标提取失败（窗口壳将使用默认图标）:", e.message);
+	}
 	run(csc, [
 		"/nologo",
 		"/target:winexe",
+		fs.existsSync(icoFile) ? `/win32icon:${icoFile}` : "/d:NO_ICON",
 		`/out:${path.join(root, "FireflyAdminApp.exe")}`,
 		`/r:${path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.Core.dll")}`,
 		`/r:${path.join(wvDir, "lib", "net462", "Microsoft.Web.WebView2.WinForms.dll")}`,

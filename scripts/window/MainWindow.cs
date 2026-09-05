@@ -41,6 +41,7 @@ namespace FireflyAdminWindow
         string baseDir;
         PrefsInfo prefs = new PrefsInfo();
         bool closing;
+        int titleLeft = 14;
 
         [DllImport("user32.dll")]
         static extern bool ReleaseCapture();
@@ -61,6 +62,28 @@ namespace FireflyAdminWindow
             bool dark = prefs.colorMode == "dark";
             BackColor = dark ? Color.FromArgb(20, 20, 22) : Color.FromArgb(245, 247, 250);
 
+            // 任务栏/标题栏图标：沿用服务引擎 FireflyAdmin.exe（node.exe）的默认图标
+            try
+            {
+                string serverExe = Path.Combine(baseDir, "FireflyAdmin.exe");
+                if (File.Exists(serverExe))
+                {
+                    Icon appIcon = Icon.ExtractAssociatedIcon(serverExe);
+                    if (appIcon != null)
+                    {
+                        Icon = appIcon;
+                        var iconBox = new PictureBox();
+                        iconBox.Size = new Size(20, 20);
+                        iconBox.Location = new Point(14, 10);
+                        iconBox.SizeMode = PictureBoxSizeMode.StretchImage;
+                        iconBox.Image = appIcon.ToBitmap();
+                        titleBar.Controls.Add(iconBox);
+                        titleLeft = 40;
+                    }
+                }
+            }
+            catch { }
+
             titleBar.Dock = DockStyle.Top;
             titleBar.Height = 40;
             titleBar.BackColor = dark ? Color.FromArgb(28, 28, 32) : Color.White;
@@ -70,7 +93,7 @@ namespace FireflyAdminWindow
             titleLabel.ForeColor = dark ? Color.White : Color.FromArgb(48, 49, 51);
             titleLabel.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold);
             titleLabel.AutoSize = true;
-            titleLabel.Location = new Point(14, 10);
+            titleLabel.Location = new Point(titleLeft, 10);
             titleLabel.MouseDown += DragWindow;
             titleBar.Controls.Add(titleLabel);
 
@@ -85,7 +108,7 @@ namespace FireflyAdminWindow
 
             Load += OnLoad;
             FormClosing += OnFormClosing;
-            Resize += delegate { if (titleLabel != null) titleLabel.Location = new Point(14, (titleBar.Height - titleLabel.Height) / 2); };
+            Resize += delegate { if (titleLabel != null) titleLabel.Location = new Point(titleLeft, (titleBar.Height - titleLabel.Height) / 2); };
         }
 
         Button MakeTitleButton(string text, bool dark, EventHandler onClick, bool danger)
