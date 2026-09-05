@@ -1,0 +1,112 @@
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const ROOT_DIR = path.resolve(__dirname, "..");
+
+const DATA_DIR = path.join(ROOT_DIR, "data");
+const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
+
+export interface ProjectProfile {
+	id: string;
+	name: string;
+	/** 本地博客项目根目录 */
+	localPath: string;
+	/** 远程仓库地址（HTTPS / SSH），可为空 */
+	remoteUrl: string;
+	/** GitHub Personal Access Token，可为空（改用 SSH 认证） */
+	token: string;
+	branch: string;
+	authorName: string;
+	authorEmail: string;
+	messageTemplate: string;
+}
+
+export interface Settings {
+	projects: ProjectProfile[];
+	activeProjectId: string;
+}
+
+const DEFAULT_SETTINGS = (): Settings => {
+	const yoimiya: ProjectProfile = {
+		id: randomUUID(),
+		name: "Yoimiya",
+		localPath: "D:\\Documents\\ZcodeProject\\Yoimiya",
+		remoteUrl: "",
+		token: "",
+		branch: "master",
+		authorName: "",
+		authorEmail: "",
+		messageTemplate: "feat: 更新博客内容",
+	};
+	return { projects: [yoimiya], activeProjectId: yoimiya.id };
+};
+
+let cached: Settings | null = null;
+
+export function loadSettings(): Settings {
+	if (cached) return cached;
+	try {
+		const raw = fs.readFileSync(SETTINGS_FILE, "utf-8");
+		const parsed = JSON.parse(raw) as Settings;
+		if (!Array.isArray(parsed.projects) || parsed.projects.length === 0) {
+			throw new Error("invalid settings");
+		}
+		if (!parsed.projects.some((p) => p.id === parsed.activeProjectId)) {
+			parsed.activeProjectId = parsed.projects[0].id;
+		}
+		cached = parsed;
+	} catch {
+		cached = DEFAULT_SETTINGS();
+		saveSettings(cached);
+	}
+	return cached;
+}
+
+export function saveSettings(settings: Settings): void {
+	cached = settings;
+	fs.mkdirSync(DATA_DIR, { recursive: true });
+	fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, "\t"), "utf-8");
+}
+
+export function getActiveProject(): ProjectProfile {
+	const s = loadSettings();
+	return s.projects.find((p) => p.id === s.activeProjectId) ?? s.projects[0];
+}
+
+/** 校验本地路径是否像一个 Firefly 类博客项目 */
+export function validateProjectPath(localPath: string): { ok: boolean; problems: string[] } {
+	const problems: string[] = [];
+	let stat: fs.Stats | null = null;
+	try {
+		stat = fs.statSync(localPath);
+	} catch {
+		/* ignore */
+	}
+	if (!stat || !stat.isDirectory()) {
+		return { ok: false, problems: ["目录不存在或不是文件夹"] };
+	}
+	const need = ["src/config", "src/content", "src/content/posts"];
+	for (const rel of need) {
+		if (!fs.existsSync(path.join(localPath, rel))) {
+			problems.push(`缺少 ${rel} 目录`);
+		}
+	}
+	return { ok: problems.length === 0, problems };
+}
+
+export function newProject(input: Partial<ProjectProfile>): ProjectProfile {
+	return {
+		id: randomUUID(),
+		name: input.name?.trim() || "未命名项目",
+		localPath: path.resolve(input.localPath || ""),
+		remoteUrl: (input.remoteUrl || "").trim(),
+		token: input.token || "",
+		branch: input.branch?.trim() || "master",
+		authorName: input.authorName || "",
+		authorEmail: input.authorEmail || "",
+		messageTemplate: input.messageTemplate || "feat: 更新博客内容",
+	};
+}

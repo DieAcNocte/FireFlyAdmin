@@ -1,0 +1,45 @@
+{
+	"name": "firefly-admin",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Firefly 博客本地管理后台",
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"dev": "concurrently -k -n server,web -c blue,green \"pnpm dev:server\" \"pnpm dev:web\"",
+		"dev:server": "tsx watch server/index.ts",
+		"dev:web": "vite",
+		"build": "vite build",
+		"start": "tsx server/index.ts",
+		"start:bun": "bun server/index.ts",
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@hono/node-server": "^1.14.4",
+		"gray-matter": "^4.0.3",
+		"hono": "^4.9.0",
+		"pinyin-pro": "^3.29.3",
+		"sharp": "^0.34.2",
+		"simple-git": "^3.27.0",
+		"tsx": "^4.20.0",
+		"typescript": "^5.9.2"
+	},
+	"devDependencies": {
+		"@codemirror/lang-javascript": "^6.2.3",
+		"@codemirror/lang-markdown": "^6.3.2",
+		"@element-plus/icons-vue": "^2.3.1",
+		"@types/markdown-it": "^14.1.2",
+		"@types/node": "^24.0.0",
+		"@vitejs/plugin-vue": "^5.2.4",
+		"codemirror": "^6.0.1",
+		"concurrently": "^9.2.0",
+		"element-plus": "^2.10.0",
+		"markdown-it": "^14.1.0",
+		"vite": "^6.3.5",
+		"vue": "^3.5.17",
+		"vue-codemirror": "^6.1.1",
+		"vue-router": "^4.5.1"
+	}
+}
