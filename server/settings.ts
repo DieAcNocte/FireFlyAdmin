@@ -41,6 +41,8 @@ export interface AppPreferences {
 	closeAction: "exit" | "background";
 	/** 管理后台默认端口（重启后生效） */
 	port: number;
+	/** 管理后台界面配色 */
+	colorMode: "light" | "dark" | "system";
 }
 
 export interface Settings {
@@ -53,6 +55,7 @@ const DEFAULT_PREFERENCES = (): AppPreferences => ({
 	uploadConvertAvif: true,
 	closeAction: "exit",
 	port: 5175,
+	colorMode: "light",
 });
 
 const DEFAULT_SETTINGS = (): Settings => {
@@ -114,6 +117,7 @@ export function savePreferences(input: Partial<AppPreferences>): AppPreferences 
 		uploadConvertAvif: input.uploadConvertAvif ?? s.preferences.uploadConvertAvif,
 		closeAction: input.closeAction === "background" ? "background" : "exit",
 		port: Number.isInteger(input.port) ? (input.port as number) : s.preferences.port,
+		colorMode: input.colorMode === "dark" || input.colorMode === "system" ? input.colorMode : input.colorMode === "light" ? "light" : s.preferences.colorMode,
 	};
 	s.preferences = next;
 	saveSettings(s);

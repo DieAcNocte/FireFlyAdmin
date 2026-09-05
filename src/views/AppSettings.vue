@@ -18,6 +18,15 @@
 					<FieldTip text="管理后台的访问端口，默认 5175。修改后需要重新打开 FireflyAdmin.exe（或重启脚本服务）才能生效；若端口被占用，启动会失败，请更换端口。" />
 				</el-form-item>
 
+				<el-form-item label="界面配色">
+					<el-radio-group v-model="form.colorMode" @change="onColorModeChange">
+						<el-radio value="light">浅色</el-radio>
+						<el-radio value="dark">深色</el-radio>
+						<el-radio value="system">跟随系统</el-radio>
+					</el-radio-group>
+					<FieldTip text="管理后台自身的亮暗配色，选中后立即预览，点击「保存」后持久生效。「跟随系统」会随操作系统的亮暗模式自动切换。" />
+				</el-form-item>
+
 				<el-form-item label="关闭窗口时">
 					<el-radio-group v-model="form.closeAction">
 						<el-radio value="exit">直接退出</el-radio>
@@ -63,11 +72,16 @@ import { onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api, type AppPreferences, type AppRuntime } from "../api";
 import FieldTip from "../components/FieldTip.vue";
+import { applyColorMode } from "../theme";
 
 const loading = ref(false);
 const saving = ref(false);
-const form = ref<AppPreferences>({ uploadConvertAvif: true, closeAction: "exit", port: 5175 });
+const form = ref<AppPreferences>({ uploadConvertAvif: true, closeAction: "exit", port: 5175, colorMode: "light" });
 const runtime = ref<AppRuntime | null>(null);
+
+function onColorModeChange(mode: string) {
+	applyColorMode(mode);
+}
 
 onMounted(load);
 

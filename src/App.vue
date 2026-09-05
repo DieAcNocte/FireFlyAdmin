@@ -82,6 +82,7 @@ import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { projectStore, activeProject, loadProjects, switchProject } from "./stores/project";
 import { api } from "./api";
+import { applyColorMode } from "./theme";
 
 const route = useRoute();
 const devRunning = ref(false);
@@ -89,6 +90,11 @@ const devRunning = ref(false);
 onMounted(async () => {
 	await loadProjects();
 	refreshDev();
+	// 界面配色跟随应用设置
+	api.app
+		.prefs()
+		.then((p) => applyColorMode(p.colorMode))
+		.catch(() => {});
 });
 
 async function refreshDev() {

@@ -140,6 +140,7 @@ export interface AppPreferences {
 	uploadConvertAvif: boolean;
 	closeAction: "exit" | "background";
 	port: number;
+	colorMode: "light" | "dark" | "system";
 }
 
 export interface AppRuntime {

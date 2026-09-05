@@ -50,6 +50,7 @@ app.put("/api/app/preferences", async (c) => {
 		uploadConvertAvif?: boolean;
 		closeAction?: "exit" | "background";
 		port?: number;
+		colorMode?: "light" | "dark" | "system";
 	};
 	if (body.port !== undefined) {
 		const port = Number(body.port);
