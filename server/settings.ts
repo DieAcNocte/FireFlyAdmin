@@ -61,18 +61,19 @@ const DEFAULT_PREFERENCES = (): AppPreferences => ({
 });
 
 const DEFAULT_SETTINGS = (): Settings => {
-	const yoimiya: ProjectProfile = {
+	// 默认项目：上游 FireFly（本地路径留空，由初始设置向导填入用户自己的博客目录）
+	const upstream: ProjectProfile = {
 		id: randomUUID(),
-		name: "Yoimiya",
-		localPath: "D:\\Documents\\ZcodeProject\\Yoimiya",
-		remoteUrl: "",
+		name: "FireFly",
+		localPath: "",
+		remoteUrl: "https://github.com/CuteLeaf/Firefly.git",
 		token: "",
-		branch: "master",
+		branch: "main",
 		authorName: "",
 		authorEmail: "",
 		messageTemplate: "feat: 更新博客内容",
 	};
-	return { projects: [yoimiya], activeProjectId: yoimiya.id, preferences: DEFAULT_PREFERENCES(), setupCompleted: false };
+	return { projects: [upstream], activeProjectId: upstream.id, preferences: DEFAULT_PREFERENCES(), setupCompleted: false };
 };
 
 let cached: Settings | null = null;

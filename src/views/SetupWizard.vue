@@ -198,22 +198,34 @@ async function validate() {
 	}
 }
 
-/** 第 2 步通过：创建/更新项目并激活；勾选了演示内容则生成 */
+/** 第 2 步通过：填入占位项目 / 复用同路径项目 / 新建项目并激活；勾选了演示内容则生成 */
 async function ensureProject() {
-	const list = await api.projects.list();
-	const existing = list.projects.find((p) => p.localPath === form.value.localPath.trim());
-	if (existing) {
-		projectId = existing.id;
-		await api.projects.update(existing.id, { name: form.value.name });
-	} else {
-		const created = await api.projects.create({
-			name: form.value.name || "我的博客",
+	const st = await api.setup.status();
+	if (!st.project.localPath) {
+		// 首次安装的默认占位项目：直接填入用户自己的博客目录
+		projectId = st.project.id;
+		await api.projects.update(projectId, {
+			name: form.value.name,
 			localPath: form.value.localPath,
 			branch: form.value.branch,
 		});
-		projectId = created.id;
+		await api.projects.activate(projectId);
+	} else {
+		const list = await api.projects.list();
+		const existing = list.projects.find((p) => p.localPath === form.value.localPath.trim());
+		if (existing) {
+			projectId = existing.id;
+			await api.projects.update(existing.id, { name: form.value.name });
+		} else {
+			const created = await api.projects.create({
+				name: form.value.name || "我的博客",
+				localPath: form.value.localPath,
+				branch: form.value.branch,
+			});
+			projectId = created.id;
+		}
+		await api.projects.activate(projectId);
 	}
-	await api.projects.activate(projectId);
 	await loadProjects();
 	if (form.value.demo) {
 		await api.setup.demo();

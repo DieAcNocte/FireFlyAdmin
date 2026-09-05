@@ -74,7 +74,7 @@ pnpm build:exe
 - 配置与 Token 数据存放在 EXE 同目录的 `data/` 下，随 EXE 走
 - 基于 Node 官方 SEA 方案（esbuild 打包 + postject 注入），首次运行无任何提示窗口，日志在启动它的控制台中
 
-首次启动会自动预置一个指向 `D:\Documents\ZcodeProject\Yoimiya` 的项目；
+首次启动会进入四步设置向导，默认项目预置为上游 FireFly（向导同步步骤可直接拉取其内容作为演示）；
 在「项目管理」中可以新增/编辑/删除/切换项目（适配任意 Firefly 类博客目录）。
 
 ## 测试
