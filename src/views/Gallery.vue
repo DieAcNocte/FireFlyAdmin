@@ -152,7 +152,14 @@ const dialogForm = ref({
 
 const currentAlbum = computed(() => (selectedIndex.value >= 0 ? albums.value[selectedIndex.value] : null));
 
-onMounted(load);
+onMounted(() => {
+	load();
+	// 上传「转 AVIF」默认值跟随应用设置
+	api.app
+		.prefs()
+		.then((p) => (convertAvif.value = p.uploadConvertAvif))
+		.catch(() => {});
+});
 
 async function load() {
 	loading.value = true;

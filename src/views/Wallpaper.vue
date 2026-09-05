@@ -172,7 +172,14 @@ const pickerSelected = ref(new Set<string>());
 const manualPath = ref("");
 const convertAvif = ref(true);
 
-onMounted(load);
+onMounted(() => {
+	load();
+	// 上传「转 AVIF」默认值跟随应用设置
+	api.app
+		.prefs()
+		.then((p) => (convertAvif.value = p.uploadConvertAvif))
+		.catch(() => {});
+});
 
 async function load() {
 	loading.value = true;

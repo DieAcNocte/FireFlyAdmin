@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { ROOT_DIR } from "./settings.js";
+import { ROOT_DIR, getPreferences, savePreferences } from "./settings.js";
 import { projectRoutes } from "./routes/projects.js";
 import { contentRoutes } from "./routes/content.js";
 import { galleryRoutes } from "./routes/gallery.js";
@@ -42,6 +42,38 @@ app.route("/api", contentRoutes);
 app.route("/api", mediaRoutes);
 
 app.get("/api/health", (c) => c.json({ ok: true, time: Date.now() }));
+
+// ── 应用设置 / 运行时控制 ──
+app.get("/api/app/preferences", (c) => c.json(getPreferences()));
+app.put("/api/app/preferences", async (c) => {
+	const body = (await c.req.json()) as {
+		uploadConvertAvif?: boolean;
+		closeAction?: "exit" | "background";
+		port?: number;
+	};
+	if (body.port !== undefined) {
+		const port = Number(body.port);
+		if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+			return c.json({ error: "端口需为 1024-65535 之间的整数" }, 400);
+		}
+	}
+	return c.json({ ok: true, preferences: savePreferences(body) });
+});
+app.get("/api/app/runtime", (c) =>
+	c.json({
+		sea: SEA_BUILD,
+		pid: process.pid,
+		port: PORT,
+		closeAction: getPreferences().closeAction,
+	})
+);
+app.post("/api/app/stop", (c) => {
+	if (!SEA_BUILD) {
+		return c.json({ error: "仅对 EXE 启动方式有效（当前为脚本模式，请直接结束进程）" }, 400);
+	}
+	setTimeout(() => process.exit(0), 200);
+	return c.json({ ok: true });
+});
 
 // 未匹配的 API 路径返回 JSON 404（而不是回退到 SPA）
 app.all("/api/*", (c) => c.json({ error: "接口不存在" }, 404));
@@ -83,6 +115,8 @@ app.get("*", (c) => {
 	return c.body(new Uint8Array(data), 200, { "Content-Type": mime ?? "application/octet-stream" });
 });
 
+let PORT = 5175;
+
 async function main() {
 	if (SEA_BUILD) {
 		try {
@@ -90,8 +124,24 @@ async function main() {
 		} catch {
 			seaApi = null;
 		}
+		// EXE 模式：关闭控制台窗口时可选择转入后台继续运行（在窗口关闭的宽限期内重启一个无窗口的分离进程）
+		process.on("SIGHUP", () => {
+			try {
+				if (getPreferences().closeAction === "background") {
+					spawn(process.execPath, [], {
+						detached: true,
+						stdio: "ignore",
+						windowsHide: true,
+						env: { ...process.env, NO_OPEN: "1" },
+					}).unref();
+				}
+			} catch {
+				/* ignore */
+			}
+			process.exit(0);
+		});
 	}
-	const PORT = Number(process.env.PORT || 5175);
+	PORT = Number(process.env.PORT || getPreferences().port || 5175);
 	serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT }, (info) => {
 		console.log(`[firefly-admin] 管理后台已启动: http://127.0.0.1:${info.port}`);
 		// 双击 EXE 启动时自动打开浏览器

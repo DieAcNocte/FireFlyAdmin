@@ -14,6 +14,7 @@ const router = createRouter({
 		{ path: "/configs", name: "configs", component: () => import("../views/Configs.vue"), meta: { title: "站点配置" } },
 		{ path: "/publish", name: "publish", component: () => import("../views/Publish.vue"), meta: { title: "发布" } },
 		{ path: "/settings", name: "settings", component: () => import("../views/Settings.vue"), meta: { title: "项目管理" } },
+		{ path: "/preferences", name: "preferences", component: () => import("../views/AppSettings.vue"), meta: { title: "应用设置" } },
 	],
 });
 

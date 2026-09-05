@@ -33,6 +33,9 @@
 				<el-menu-item index="/settings">
 					<el-icon><FolderOpened /></el-icon><span>项目管理</span>
 				</el-menu-item>
+				<el-menu-item index="/preferences">
+					<el-icon><Tools /></el-icon><span>应用设置</span>
+				</el-menu-item>
 			</el-menu>
 		</el-aside>
 		<el-container>

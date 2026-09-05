@@ -136,6 +136,19 @@ export interface ImageInfo {
 	url: string;
 }
 
+export interface AppPreferences {
+	uploadConvertAvif: boolean;
+	closeAction: "exit" | "background";
+	port: number;
+}
+
+export interface AppRuntime {
+	sea: boolean;
+	pid: number;
+	port: number;
+	closeAction: "exit" | "background";
+}
+
 // ── API ──
 
 export const api = {
@@ -203,6 +216,12 @@ export const api = {
 		devStatus: () => get<{ running: boolean; cwd: string | null; logs: string[]; url: string }>("/blog/dev"),
 		devStart: () => post<{ running: boolean; logs: string[]; url: string }>("/blog/dev", { action: "start" }),
 		devStop: () => post<{ running: boolean; logs: string[]; url: string }>("/blog/dev", { action: "stop" }),
+	},
+	app: {
+		prefs: () => get<AppPreferences>("/app/preferences"),
+		savePrefs: (p: Partial<AppPreferences>) => put<{ ok: boolean; preferences: AppPreferences }>("/app/preferences", p),
+		runtime: () => get<AppRuntime>("/app/runtime"),
+		stop: () => post<{ ok: boolean }>("/app/stop"),
 	},
 };
 

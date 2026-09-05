@@ -34,10 +34,26 @@ export interface ProjectProfile {
 	messageTemplate: string;
 }
 
+export interface AppPreferences {
+	/** 上传图片时默认开启「转 AVIF」 */
+	uploadConvertAvif: boolean;
+	/** 关闭 EXE 控制台窗口时：exit 直接退出 | background 转入后台继续运行 */
+	closeAction: "exit" | "background";
+	/** 管理后台默认端口（重启后生效） */
+	port: number;
+}
+
 export interface Settings {
 	projects: ProjectProfile[];
 	activeProjectId: string;
+	preferences: AppPreferences;
 }
+
+const DEFAULT_PREFERENCES = (): AppPreferences => ({
+	uploadConvertAvif: true,
+	closeAction: "exit",
+	port: 5175,
+});
 
 const DEFAULT_SETTINGS = (): Settings => {
 	const yoimiya: ProjectProfile = {
@@ -51,7 +67,7 @@ const DEFAULT_SETTINGS = (): Settings => {
 		authorEmail: "",
 		messageTemplate: "feat: 更新博客内容",
 	};
-	return { projects: [yoimiya], activeProjectId: yoimiya.id };
+	return { projects: [yoimiya], activeProjectId: yoimiya.id, preferences: DEFAULT_PREFERENCES() };
 };
 
 let cached: Settings | null = null;
@@ -67,6 +83,8 @@ export function loadSettings(): Settings {
 		if (!parsed.projects.some((p) => p.id === parsed.activeProjectId)) {
 			parsed.activeProjectId = parsed.projects[0].id;
 		}
+		// 旧版本设置文件迁移：补齐 preferences
+		parsed.preferences = { ...DEFAULT_PREFERENCES(), ...(parsed.preferences ?? {}) };
 		cached = parsed;
 	} catch {
 		cached = DEFAULT_SETTINGS();
@@ -84,6 +102,22 @@ export function saveSettings(settings: Settings): void {
 export function getActiveProject(): ProjectProfile {
 	const s = loadSettings();
 	return s.projects.find((p) => p.id === s.activeProjectId) ?? s.projects[0];
+}
+
+export function getPreferences(): AppPreferences {
+	return loadSettings().preferences;
+}
+
+export function savePreferences(input: Partial<AppPreferences>): AppPreferences {
+	const s = loadSettings();
+	const next: AppPreferences = {
+		uploadConvertAvif: input.uploadConvertAvif ?? s.preferences.uploadConvertAvif,
+		closeAction: input.closeAction === "background" ? "background" : "exit",
+		port: Number.isInteger(input.port) ? (input.port as number) : s.preferences.port,
+	};
+	s.preferences = next;
+	saveSettings(s);
+	return next;
 }
 
 /** 校验本地路径是否像一个 Firefly 类博客项目 */
