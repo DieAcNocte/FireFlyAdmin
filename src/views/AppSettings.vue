@@ -167,10 +167,24 @@ async function rerunWizard() {
 }
 
 async function resetDemo() {
-	await ElMessageBox.confirm(
-		"将对当前项目的博客执行重置：清空全部文章与动态，写入一篇「测试」文章和一条「测试」动态；相册只保留一个普通 + 一个加密演示相册；壁纸只保留 D01 / M01。此操作会清空博客现有内容（已提交过的可通过 git 找回）。确定继续？",
-		"重置为默认演示内容",
-		{ type: "warning", confirmButtonText: "确认重置", cancelButtonText: "取消" }
+	const project = activeProject?.value;
+	const name = project?.name || "";
+	await ElMessageBox.prompt(
+		"⚠ 高风险操作：将对下面的博客目录执行重置——\n\n" +
+			"项目名称：" + name + "\n" +
+			"博客路径：" + (project?.localPath || "") + "\n\n" +
+			"重置内容：清空全部文章与动态，写入一篇「测试」文章和一条「测试」动态；" +
+			"相册只保留一个普通 + 一个加密演示相册（图片目录清空）；壁纸只保留 D01 / M01。\n\n" +
+			"已提交过的内容可通过博客 git 找回，但未提交的内容将丢失。\n\n" +
+			"如需继续，请输入当前项目名称「" + name + "」以确认：",
+		"重置为默认演示内容（高风险）",
+		{
+			type: "warning",
+			confirmButtonText: "确认重置",
+			cancelButtonText: "取消",
+			inputPattern: new RegExp("^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"),
+			inputErrorMessage: "项目名称不匹配，无法重置",
+		}
 	);
 	try {
 		const r = await api.setup.demo();
