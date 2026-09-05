@@ -147,6 +147,33 @@ export const setupRoutes = new Hono()
 			}
 			return c.json({ error: "同步失败：" + stderr.split("\n").filter(Boolean).slice(-3).join(" ") }, 400);
 		}
+	})
+	// 高风险：强制与远程同步（fetch + reset --hard + clean），本地未提交内容全部丢弃
+	.post("/force-sync", async (c) => {
+		const project: ProjectProfile = getActiveProject();
+		const v = validateProjectPath(project.localPath);
+		if (!v.ok) return c.json({ error: "本地路径无效：" + v.problems.join("；") }, 400);
+		if (!project.remoteUrl) return c.json({ error: "尚未配置远程仓库地址" }, 400);
+		const branch = project.branch || "master";
+		const env = gitEnvWithToken(project.token || "");
+		const url = project.token ? toHttpsUrl(project.remoteUrl) : project.remoteUrl;
+		const gitDir = path.join(project.localPath, ".git");
+		if (!fs.existsSync(gitDir)) {
+			return c.json({ error: "本地目录不是 git 仓库，无法同步。请先在向导第 4 步克隆或手动初始化。" }, 400);
+		}
+		const steps: string[] = [];
+		try {
+			execFileSync("git", ["fetch", url, branch], { env, cwd: project.localPath, stdio: "pipe", timeout: 300000 });
+			steps.push("已拉取远程 " + branch);
+			execFileSync("git", ["reset", "--hard", "FETCH_HEAD"], { env, cwd: project.localPath, stdio: "pipe", timeout: 120000 });
+			steps.push("已将本地重置为远程状态");
+			execFileSync("git", ["clean", "-fd"], { env, cwd: project.localPath, stdio: "pipe", timeout: 120000 });
+			steps.push("已清理未跟踪的新文件");
+			return c.json({ ok: true, message: steps.join("；") + "。本地已与远程 " + branch + " 完全一致。" });
+		} catch (e: any) {
+			const stderr = String(e.stderr || e.message || "");
+			return c.json({ error: "同步失败：" + stderr.split("\n").filter(Boolean).slice(-3).join(" ") }, 400);
+		}
 	});
 
 function gitStatusSafe(cwd: string, env: Record<string, string>): Promise<string | null> {

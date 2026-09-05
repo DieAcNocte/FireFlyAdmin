@@ -238,6 +238,7 @@ export const api = {
 		sshKeygen: () => post<{ ok: boolean; publicKey: string; keyPath: string }>("/setup/ssh-keygen"),
 		testRemote: (url: string, token?: string) => post<{ ok: boolean; message: string }>("/setup/test-remote", { url, token }),
 		sync: () => post<{ ok: boolean; action: "clone" | "pull"; message: string }>("/setup/sync"),
+		forceSync: () => post<{ ok: boolean; message: string }>("/setup/force-sync"),
 	},
 };
 

@@ -52,6 +52,21 @@
 			</div>
 		</el-card>
 
+		<el-card shadow="never" class="page-card">
+			<template #header>
+				<div class="card-header">
+					<span>GitHub 强制同步</span>
+					<el-tag type="danger" effect="dark" size="small">高风险</el-tag>
+				</div>
+			</template>
+			<p class="warn-tip" style="margin-top: 0">
+				从「项目管理」中配置的远程仓库拉取内容，并将本地博客目录<b>完全重置</b>为远程状态：
+				所有未提交的修改会被丢弃、所有未跟踪的新文件会被删除。仅在本地内容损坏、
+				或确定要以远程为准时使用。日常同步请使用向导中的普通同步（不会丢弃本地修改）。
+			</p>
+			<el-button type="danger" @click="forceSync">尝试与 GitHub 同步（覆盖本地）</el-button>
+		</el-card>
+
 		<el-card shadow="never">
 			<template #header>
 				<div class="card-header">
@@ -86,6 +101,7 @@
 import { onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api, type AppPreferences, type AppRuntime } from "../api";
+import { activeProject } from "../stores/project";
 import FieldTip from "../components/FieldTip.vue";
 import { applyColorMode } from "../theme";
 
@@ -159,6 +175,28 @@ async function resetDemo() {
 	try {
 		const r = await api.setup.demo();
 		ElMessage.success(`已重置为默认演示内容（${r.post} / ${r.dynamic}）`);
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	}
+}
+
+async function forceSync() {
+	const project = activeProject?.value;
+	await ElMessageBox.confirm(
+		"⚠ 这是高风险操作，请确认你知道自己在做什么：\n\n" +
+			"执行后，本地博客目录（" + (project?.localPath || "当前项目") + "）将被完全重置为远程仓库 " +
+			(project?.remoteUrl || "（未配置）") + " 的 " + (project?.branch || "master") +
+			" 分支状态：\n\n" +
+			"• 所有未提交的修改将被丢弃\n" +
+			"• 所有未提交的新文件将被删除\n" +
+			"• 本地内容将与远程完全一致，无法通过本后台撤销\n\n" +
+			"确定要继续吗？",
+		"高风险操作：强制与 GitHub 同步",
+		{ type: "error", confirmButtonText: "我知道风险，覆盖本地", cancelButtonText: "取消", confirmButtonClass: "el-button--danger" }
+	);
+	try {
+		const r = await api.setup.forceSync();
+		ElMessage.success(r.message);
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	}
