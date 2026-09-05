@@ -4,7 +4,8 @@
 	<el-container v-else class="layout">
 		<el-aside width="210px" class="aside">
 			<div class="brand">
-				<span class="brand-icon">🔥</span>
+				<img v-if="!iconFailed" :src="brandIconUrl" class="brand-icon" alt="" @error="iconFailed = true" />
+				<span v-else class="brand-icon">🔥</span>
 				<span>FireFly管理后台</span>
 			</div>
 			<el-menu :default-active="route.path" router class="menu">
@@ -90,6 +91,8 @@ import SetupWizard from "./views/SetupWizard.vue";
 const route = useRoute();
 const devRunning = ref(false);
 const showWizard = ref(false);
+const iconFailed = ref(false);
+const brandIconUrl = "/api/app/icon";
 
 onMounted(async () => {
 	await loadProjects();
@@ -181,6 +184,15 @@ async function toggleDev() {
 .menu {
 	border-right: none;
 	flex: 1;
+}
+
+.brand-icon {
+	width: 20px;
+	height: 20px;
+	object-fit: contain;
+	flex-shrink: 0;
+	font-size: 16px;
+	line-height: 1;
 }
 
 .header {

@@ -78,13 +78,21 @@ fs.writeFileSync(
 run("node", ["--experimental-sea-config", path.relative(root, seaConfigFile).replace(/\\/g, "/")]);
 
 // 4. 复制 node.exe 为 FireflyAdmin.exe（先结束可能还在运行的旧实例）
-console.log("[4/6] 复制 Node 运行时...");
+console.log("[4/7] 复制 Node 运行时...");
 try {
 	spawnSync("taskkill", ["/F", "/IM", "FireflyAdmin.exe"], { stdio: "ignore" });
+	spawnSync("taskkill", ["/F", "/IM", "FireflyAdminApp.exe"], { stdio: "ignore" });
+	spawnSync("ping", ["-n", "3", "127.0.0.1"], { stdio: "ignore" });
 } catch {
 	/* ignore */
 }
-fs.copyFileSync(process.execPath, exeFile);
+try {
+	fs.copyFileSync(process.execPath, exeFile);
+} catch {
+	// 文件锁可能尚未释放，等待后重试一次
+	spawnSync("ping", ["-n", "4", "127.0.0.1"], { stdio: "ignore" });
+	fs.copyFileSync(process.execPath, exeFile);
+}
 
 // 5. 注入 SEA blob
 console.log("[5/6] 注入 SEA blob (postject)...");
@@ -116,6 +124,8 @@ try {
 			`$fs = [System.IO.File]::Create("${icoFile.replace(/\\/g, "\\\\")}")`,
 			`$i.Save($fs)`,
 			`$fs.Close()`,
+			`New-Item -ItemType Directory -Force "${path.join(root, "data").replace(/\\/g, "\\\\")}" | Out-Null`,
+			`$i.ToBitmap().Save("${path.join(root, "data", "app-icon.png").replace(/\\/g, "\\\\")}", [System.Drawing.Imaging.ImageFormat]::Png)`,
 		].join("; ");
 		execFileSync("powershell", ["-NoProfile", "-Command", ps], { stdio: "inherit", cwd: root });
 	} catch (e) {

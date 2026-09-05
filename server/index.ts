@@ -77,6 +77,15 @@ app.post("/api/app/stop", (c) => {
 	setTimeout(() => process.exit(0), 200);
 	return c.json({ ok: true });
 });
+// 应用图标（打包时从引擎 EXE 提取的 PNG，用于界面品牌位与 favicon）
+app.get("/api/app/icon", (c) => {
+	const p = path.join(ROOT_DIR, "data", "app-icon.png");
+	if (!fs.existsSync(p)) return c.json({ error: "图标未生成，请重新执行 pnpm build:exe" }, 404);
+	return c.body(new Uint8Array(fs.readFileSync(p)), 200, {
+		"Content-Type": "image/png",
+		"Cache-Control": "no-cache",
+	});
+});
 
 // 未匹配的 API 路径返回 JSON 404（而不是回退到 SPA）
 app.all("/api/*", (c) => c.json({ error: "接口不存在" }, 404));
