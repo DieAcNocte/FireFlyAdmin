@@ -57,9 +57,11 @@
 					</el-tooltip>
 				</div>
 				<div class="header-right">
-					<el-tag v-if="devRunning" type="success" effect="dark" size="small">dev 运行中</el-tag>
-					<el-button size="small" :type="devRunning ? 'danger' : 'primary'" plain @click="toggleDev">
-						{{ devRunning ? "停止博客预览" : "启动博客预览" }}
+					<el-tag v-if="devRunning" type="success" effect="dark" size="small">预览运行中</el-tag>
+					<el-button size="small" :type="devRunning ? 'danger' : 'primary'" :plain="!devRunning" @click="toggleDev">
+						<el-icon v-if="devRunning"><CircleCloseFilled /></el-icon>
+						<el-icon v-else><VideoPlay /></el-icon>
+						{{ devRunning ? "关闭预览" : "启动预览" }}
 					</el-button>
 					<el-button size="small" tag="a" href="http://localhost:4321/" target="_blank">打开博客 ↗</el-button>
 				</div>
