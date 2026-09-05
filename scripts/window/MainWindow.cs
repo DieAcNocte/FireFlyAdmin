@@ -54,7 +54,7 @@ namespace FireflyAdminWindow
             prefs = ReadPrefs();
             url = "http://127.0.0.1:" + prefs.port;
 
-            Text = "Firefly 博客管理后台";
+            Text = "FireFly管理后台";
             ClientSize = new Size(1440, 900);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.None;
@@ -89,7 +89,7 @@ namespace FireflyAdminWindow
             titleBar.BackColor = dark ? Color.FromArgb(28, 28, 32) : Color.White;
             titleBar.MouseDown += DragWindow;
 
-            titleLabel.Text = "Firefly 博客管理后台";
+            titleLabel.Text = "FireFly管理后台";
             titleLabel.ForeColor = dark ? Color.White : Color.FromArgb(48, 49, 51);
             titleLabel.Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold);
             titleLabel.AutoSize = true;
@@ -161,7 +161,7 @@ namespace FireflyAdminWindow
                     Text = web.CoreWebView2.DocumentTitle;
                     titleLabel.Text = Text;
                 };
-                web.SourceChanged += delegate { Text = "Firefly 博客管理后台"; };
+                web.SourceChanged += delegate { Text = "FireFly管理后台"; };
                 web.CoreWebView2.Navigate(url);
             }
             catch (Exception ex)

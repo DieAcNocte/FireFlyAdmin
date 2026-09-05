@@ -3,7 +3,7 @@
 		<el-aside width="210px" class="aside">
 			<div class="brand">
 				<span class="brand-icon">🔥</span>
-				<span>Firefly 管理后台</span>
+				<span>FireFly管理后台</span>
 			</div>
 			<el-menu :default-active="route.path" router class="menu">
 				<el-menu-item index="/dashboard">

@@ -113,7 +113,10 @@ app.get("*", (c) => {
 	if (!data) {
 		return c.text("前端资源未找到：请先运行 pnpm build（开发模式请访问 http://localhost:5176）", 404);
 	}
-	return c.body(new Uint8Array(data), 200, { "Content-Type": mime ?? "application/octet-stream" });
+	// HTML 不缓存：页面更新后 WebView2/浏览器即时拿到新版；带 hash 的静态资源无此问题
+	const headers: Record<string, string> = { "Content-Type": mime ?? "application/octet-stream" };
+	if (mime?.startsWith("text/html")) headers["Cache-Control"] = "no-cache";
+	return c.body(new Uint8Array(data), 200, headers);
 });
 
 let PORT = 5175;
