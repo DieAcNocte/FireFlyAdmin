@@ -4,6 +4,7 @@ node_modules/
 # build output
 dist/
 release/
+Releases/
 FireflyAdmin.exe
 FireflyAdminApp.exe
 WebView2Loader.dll
