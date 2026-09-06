@@ -114,6 +114,17 @@ export interface GalleryImage {
 	url: string;
 }
 
+export interface ThemeCapabilities {
+	theme: "firefly" | "mizuki" | "fuwari" | "unknown";
+	gallery: "config" | "scanner" | null;
+	dynamics: "markdown" | "diaryTs" | null;
+	dynamicsPinned: boolean;
+	wallpaper: "background" | "mizuki" | null;
+	/** 配置文件布局：dir = src/config/*.ts（v9+）；single = src/config.ts（v8.x） */
+	configLayout: "dir" | "single" | null;
+	demoReset: boolean;
+}
+
 export interface GitFileItem {
 	path: string;
 	staged: boolean;
@@ -141,6 +152,8 @@ export interface AppPreferences {
 	closeAction: "exit" | "background";
 	port: number;
 	colorMode: "light" | "dark" | "system";
+	/** 博客模式：auto 按项目自动识别 | firefly / mizuki 手动指定 */
+	blogMode: "auto" | "firefly" | "mizuki";
 }
 
 export interface AppRuntime {
@@ -164,6 +177,7 @@ export const api = {
 	overview: () =>
 		get<{
 			project: { id: string; name: string; localPath: string; remoteUrl: string; branch: string };
+			theme: string;
 			counts: { posts: number; dynamics: number; albums: number; desktopWallpapers: number; mobileWallpapers: number };
 			git: { branch: string; changed: number; ahead: number; behind: number } | null;
 			dev: { running: boolean; cwd: string | null; logs: string[]; url: string };
@@ -187,7 +201,7 @@ export const api = {
 		save: (file: string, content: string) => put<{ ok: boolean }>(`/pages?file=${encodeURIComponent(file)}`, { content }),
 	},
 	configs: {
-		entries: () => get<{ entries: ConfigEntry[] }>("/configs"),
+		entries: () => get<{ theme: string; configLayout: string | null; entries: ConfigEntry[] }>("/configs"),
 		get: (file: string) => get<{ file: string; exportName: string; title: string; fields: FieldSpec[] }>(`/configs/${file}`),
 		saveFields: (file: string, values: { path: string; value: unknown }[]) =>
 			put<{ ok: boolean; applied: string[] }>(`/configs/${file}/fields`, { values }),
@@ -195,9 +209,15 @@ export const api = {
 		rawGet: (file: string) => get<ConfigFile>(`/configs/raw/${file}`),
 		rawSave: (file: string, content: string) => put<{ ok: boolean }>(`/configs/raw/${file}`, { content }),
 	},
+	theme: {
+		get: () => get<ThemeCapabilities>("/theme"),
+	},
 	gallery: {
-		get: () => get<{ albums: Record<string, unknown>[]; columnWidth: number }>("/gallery"),
-		save: (albums: Record<string, unknown>[], columnWidth?: number) => put<{ ok: boolean }>("/gallery", { albums, columnWidth }),
+		get: () =>
+			get<{ theme: string; albums: Record<string, unknown>[]; columnWidth: number | null }>("/gallery"),
+		save: (albums: Record<string, unknown>[], columnWidth?: number | null) =>
+			put<{ ok: boolean }>("/gallery", { albums, columnWidth: columnWidth ?? undefined }),
+		remove: (albumId: string) => del<{ ok: boolean }>(`/gallery/${encodeURIComponent(albumId)}`),
 		images: (albumId: string) => get<{ images: GalleryImage[] }>(`/gallery/${encodeURIComponent(albumId)}/images`),
 		setCover: (albumId: string, file: string) => post<{ ok: boolean }>(`/gallery/${encodeURIComponent(albumId)}/cover`, { file }),
 	},

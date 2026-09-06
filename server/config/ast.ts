@@ -356,8 +356,66 @@ export function writePath(
 	if (!root) throw new Error(`未找到 export const ${exportName}`);
 	const { target, lineIndent } = locateTarget(code, sf, root, segments);
 	const depth = Math.max(indentDepth(lineIndent), 0);
-	const replacement = serializeMerged(target, newValue, code, sf, depth);
+	let replacement = serializeMerged(target, newValue, code, sf, depth);
+	// CRLF 文件保持行尾一致（序列化输出统一是 \n）
+	const originalText = code.slice(target.getStart(sf), target.getEnd());
+	if (originalText.includes("\r\n")) replacement = replacement.replace(/\r?\n/g, "\r\n");
 	const start = target.getStart(sf);
 	const end = target.getEnd();
+	return code.slice(0, start) + replacement + code.slice(end);
+}
+
+/** 查找顶层变量声明（无论是否 export，允许类型注解）的初始化表达式 */
+function findVariableInitializer(sf: ts.SourceFile, name: string): ts.Expression | undefined {
+	let found: ts.Expression | undefined;
+	sf.forEachChild((node) => {
+		if (found) return;
+		if (!ts.isVariableStatement(node)) return;
+		for (const decl of node.declarationList.declarations) {
+			if (!ts.isIdentifier(decl.name) || decl.name.text !== name) continue;
+			let init = decl.initializer;
+			if (init && ts.isAsExpression(init)) init = init.expression;
+			if (init) {
+				found = init;
+				return;
+			}
+		}
+	});
+	return found;
+}
+
+/** 读取顶层 const 数组字面量（如 Mizuki src/data/diary.ts 的 `const diaryData: DiaryItem[] = [...]`） */
+export function readTopLevelArray(
+	code: string,
+	constName: string
+): { found: boolean; value?: unknown; error?: string } {
+	const sf = parseSource(code);
+	const root = findVariableInitializer(sf, constName);
+	if (!root) return { found: false, error: `未找到 const ${constName}` };
+	if (!ts.isArrayLiteralExpression(root)) return { found: false, error: `const ${constName} 不是数组字面量` };
+	try {
+		const r = evaluateNode(root);
+		if (r.kind === "value") return { found: true, value: r.value };
+		return { found: true, value: null, error: r.message };
+	} catch (e) {
+		return { found: false, error: e instanceof Error ? e.message : String(e) };
+	}
+}
+
+/** 整组替换顶层 const 数组字面量（与原元素按位置合并，保留未声明键、内部注释与原行尾） */
+export function writeTopLevelArray(code: string, constName: string, newValue: unknown[]): string {
+	const sf = parseSource(code);
+	const root = findVariableInitializer(sf, constName);
+	if (!root || !ts.isArrayLiteralExpression(root)) {
+		throw new Error(`未找到可写的 const ${constName} 数组`);
+	}
+	const lineIndent = lineIndentOf(code, root.getStart(sf));
+	const depth = Math.max(indentDepth(lineIndent), 0);
+	let replacement = serializeMerged(root, newValue, code, sf, depth);
+	// CRLF 文件保持行尾一致（序列化输出统一是 \n）
+	const originalText = code.slice(root.getStart(sf), root.getEnd());
+	if (originalText.includes("\r\n")) replacement = replacement.replace(/\r?\n/g, "\r\n");
+	const start = root.getStart(sf);
+	const end = root.getEnd();
 	return code.slice(0, start) + replacement + code.slice(end);
 }

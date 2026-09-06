@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { activeDirs, ensureInside, projectDirs } from "../paths.js";
-import { ROOT_DIR, type ProjectProfile } from "../settings.js";
+import { ROOT_DIR, getActiveProject, type ProjectProfile } from "../settings.js";
+import { capabilitiesFor } from "../theme.js";
 
 /** sharp 为原生模块，无法嵌入 SEA 单文件 EXE：运行时懒加载（优先常规解析，回退到项目根 node_modules） */
 let sharpModule: any | null | undefined;
@@ -27,16 +28,21 @@ export type ImageTarget = "wallpaper-desktop" | "wallpaper-mobile" | "post-image
 
 export function targetDir(target: ImageTarget, albumId?: string, project?: ProjectProfile): string {
 	const dirs = project ? projectDirs(project) : activeDirs();
+	// Mizuki：壁纸图 v9 在 public/assets/*-banner，v8.x（单文件布局）在 public/images；相册在 public/images/albums
+	const root = project ? project.localPath : getActiveProject().localPath;
+	const caps = capabilitiesFor(root);
+	const mizuki = caps.theme === "mizuki";
 	switch (target) {
 		case "wallpaper-desktop":
-			return dirs.desktopWallpaperDir;
+			return mizuki ? (caps.configLayout === "single" ? dirs.publicImagesDir : dirs.bannerDesktopDir) : dirs.desktopWallpaperDir;
 		case "wallpaper-mobile":
-			return dirs.mobileWallpaperDir;
+			return mizuki ? (caps.configLayout === "single" ? dirs.publicImagesDir : dirs.bannerMobileDir) : dirs.mobileWallpaperDir;
 		case "post-images":
 			return dirs.postImagesDir;
 		case "gallery": {
 			if (!albumId || !/^[A-Za-z0-9_-]+$/.test(albumId)) throw new Error("相册 ID 非法");
-			return path.join(dirs.galleryDir, albumId);
+			const base = mizuki ? dirs.albumsDir : dirs.galleryDir;
+			return path.join(base, albumId);
 		}
 	}
 	throw new Error("未知的目标目录");
@@ -51,7 +57,7 @@ function listDir(dir: string): { name: string; size: number; mtime: number; url:
 	if (!fs.existsSync(dir)) return [];
 	return fs
 		.readdirSync(dir)
-		.filter((f) => fs.statSync(path.join(dir, f)).isFile())
+		.filter((f) => f !== "info.json" && fs.statSync(path.join(dir, f)).isFile())
 		.map((f) => {
 			const st = fs.statSync(path.join(dir, f));
 			return {
@@ -69,7 +75,21 @@ function mediaUrlFor(dir: string, file: string): string {
 	const dirs = activeDirs();
 	let root = "gallery";
 	let base = dirs.galleryDir;
-	if (dir === dirs.desktopWallpaperDir) {
+	if (dir === dirs.bannerDesktopDir) {
+		root = "desktop";
+		base = dir;
+	} else if (dir === dirs.bannerMobileDir) {
+		root = "mobile";
+		base = dir;
+	} else if (dir === dirs.publicImagesDir) {
+		// Mizuki v8.x：桌面/移动壁纸同在 public/images，媒体端点两侧都映射到该目录
+		root = "desktop";
+		base = dir;
+	} else if (dir === dirs.albumsDir || dir.startsWith(dirs.albumsDir + path.sep)) {
+		// Mizuki 相册（dir 可能是某个相册子目录）：base 必须是相册根，保持 <albumId>/xx.ext 层级
+		root = "gallery";
+		base = dirs.albumsDir;
+	} else if (dir === dirs.desktopWallpaperDir) {
 		root = "desktop";
 		base = dir;
 	} else if (dir === dirs.mobileWallpaperDir) {
@@ -133,8 +153,11 @@ export function deleteImage(target: ImageTarget, name: string, albumId?: string)
 	fs.rmSync(file);
 }
 
-/** 将相册中的某张图设为封面：命名为 cover.<原扩展名>（删除旧封面文件） */
-export function setGalleryCover(albumId: string, name: string): { cover: string } {
+/**
+ * 将相册中的某张图设为封面：命名为 cover.<原扩展名>（删除旧封面文件）。
+ * Mizuki 相册的扫描器只识别 cover.webp / cover.jpg，其他格式先转码为 webp（保留原图）。
+ */
+export async function setGalleryCover(albumId: string, name: string): Promise<{ cover: string }> {
 	const dir = targetDir("gallery", albumId);
 	const src = ensureInside(dir, path.join(dir, sanitizeName(name)));
 	if (!fs.existsSync(src)) throw new Error("文件不存在");
@@ -143,6 +166,14 @@ export function setGalleryCover(albumId: string, name: string): { cover: string 
 		if (/^cover\./i.test(f)) fs.rmSync(path.join(dir, f));
 	}
 	const ext = path.extname(name).toLowerCase();
+	const mizuki = capabilitiesFor(getActiveProject().localPath).theme === "mizuki";
+	if (mizuki && ext !== ".webp" && ext !== ".jpg") {
+		const sharp = await getSharp();
+		if (!sharp) throw new Error("Mizuki 相册封面只支持 webp/jpg，且转码需要 sharp（请在管理后台目录保留 node_modules）");
+		const dest = path.join(dir, "cover.webp");
+		await sharp(src).webp({ quality: 85 }).toBuffer().then((data: Buffer) => fs.writeFileSync(dest, data));
+		return { cover: "cover.webp" };
+	}
 	const dest = path.join(dir, `cover${ext}`);
 	fs.renameSync(src, dest);
 	return { cover: `cover${ext}` };

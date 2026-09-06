@@ -7,6 +7,7 @@ import { listPosts } from "../content/posts.js";
 import { listDynamics } from "../content/dynamics.js";
 import { readPath } from "../config/ast.js";
 import { activeDirs } from "../paths.js";
+import { activeCapabilities } from "../theme.js";
 import { gitStatus } from "../git/publish.js";
 
 export const blogRoutes = new Hono()
@@ -14,11 +15,21 @@ export const blogRoutes = new Hono()
 	.get("/overview", async (c) => {
 		const project = getActiveProject();
 		const dirs = activeDirs();
+		const caps = activeCapabilities();
 		let albums = 0;
 		try {
-			const code = fs.readFileSync(path.join(dirs.configDir, "galleryConfig.ts"), "utf-8");
-			const r = readPath(code, "galleryConfig", ["albums"]);
-			if (r.found && Array.isArray(r.value)) albums = r.value.length;
+			if (caps.gallery === "scanner") {
+				const base = dirs.albumsDir;
+				if (fs.existsSync(base)) {
+					albums = fs
+						.readdirSync(base, { withFileTypes: true })
+						.filter((d) => d.isDirectory() && fs.existsSync(path.join(base, d.name, "info.json"))).length;
+				}
+			} else {
+				const code = fs.readFileSync(path.join(dirs.configDir, "galleryConfig.ts"), "utf-8");
+				const r = readPath(code, "galleryConfig", ["albums"]);
+				if (r.found && Array.isArray(r.value)) albums = r.value.length;
+			}
 		} catch {
 			/* ignore */
 		}
@@ -36,14 +47,17 @@ export const blogRoutes = new Hono()
 				return 0;
 			}
 		};
+		const isMizuki = caps.wallpaper === "mizuki";
+		const mizukiSingle = isMizuki && caps.configLayout === "single";
 		return c.json({
 			project: { id: project.id, name: project.name, localPath: project.localPath, remoteUrl: project.remoteUrl, branch: project.branch },
+			theme: caps.theme,
 			counts: {
 				posts: listPosts().length,
 				dynamics: listDynamics().length,
 				albums,
-				desktopWallpapers: countFiles(dirs.desktopWallpaperDir, (f) => /\.(avif|webp|png|jpe?g|gif)$/i.test(f)),
-				mobileWallpapers: countFiles(dirs.mobileWallpaperDir, (f) => /\.(avif|webp|png|jpe?g|gif)$/i.test(f)),
+				desktopWallpapers: countFiles(mizukiSingle ? dirs.publicImagesDir : isMizuki ? dirs.bannerDesktopDir : dirs.desktopWallpaperDir, (f) => /\.(avif|webp|png|jpe?g|gif)$/i.test(f)),
+				mobileWallpapers: countFiles(mizukiSingle ? dirs.publicImagesDir : isMizuki ? dirs.bannerMobileDir : dirs.mobileWallpaperDir, (f) => /\.(avif|webp|png|jpe?g|gif)$/i.test(f)),
 			},
 			git,
 			dev: devStatus(),

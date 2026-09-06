@@ -9,21 +9,24 @@ import {
 	type ImageTarget,
 } from "../media/images.js";
 import { activeDirs, ensureInside } from "../paths.js";
+import { activeCapabilities } from "../theme.js";
 
 const TARGETS: ImageTarget[] = ["wallpaper-desktop", "wallpaper-mobile", "post-images", "gallery"];
 
-/** 预览媒体文件的根目录映射 */
+/** 预览媒体文件的根目录映射（随主题切换：Mizuki 相册在 public/images/albums，v8 壁纸同在 public/images） */
 function mediaRoot(root: string): string {
 	const dirs = activeDirs();
+	const caps = activeCapabilities();
+	const mizuki = caps.theme === "mizuki";
 	switch (root) {
 		case "desktop":
-			return dirs.desktopWallpaperDir;
+			return mizuki ? (caps.configLayout === "single" ? dirs.publicImagesDir : dirs.bannerDesktopDir) : dirs.desktopWallpaperDir;
 		case "mobile":
-			return dirs.mobileWallpaperDir;
+			return mizuki ? (caps.configLayout === "single" ? dirs.publicImagesDir : dirs.bannerMobileDir) : dirs.mobileWallpaperDir;
 		case "posts":
 			return dirs.postImagesDir;
 		case "gallery":
-			return dirs.galleryDir;
+			return mizuki ? dirs.albumsDir : dirs.galleryDir;
 	}
 	throw new Error("非法的媒体目录");
 }

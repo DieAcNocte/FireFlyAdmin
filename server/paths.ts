@@ -1,7 +1,7 @@
 import path from "node:path";
 import { getActiveProject, type ProjectProfile } from "./settings.js";
 
-/** 当前激活项目的各内容目录 */
+/** 当前激活项目的各内容目录（同时列出 FireFly 与 Mizuki 两套约定，由使用方按主题取用） */
 export function projectDirs(project: ProjectProfile) {
 	const root = project.localPath;
 	return {
@@ -14,6 +14,13 @@ export function projectDirs(project: ProjectProfile) {
 		galleryDir: path.join(root, "public", "gallery"),
 		desktopWallpaperDir: path.join(root, "src", "assets", "images", "DesktopWallpaper"),
 		mobileWallpaperDir: path.join(root, "src", "assets", "images", "MobileWallpaper"),
+		// Mizuki 约定
+		srcDir: path.join(root, "src"),
+		dataDir: path.join(root, "src", "data"),
+		albumsDir: path.join(root, "public", "images", "albums"),
+		bannerDesktopDir: path.join(root, "public", "assets", "desktop-banner"),
+		bannerMobileDir: path.join(root, "public", "assets", "mobile-banner"),
+		publicImagesDir: path.join(root, "public", "images"),
 	};
 }
 

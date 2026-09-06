@@ -61,6 +61,9 @@
 					<el-tooltip v-if="activeProject" :content="activeProject.localPath" placement="bottom">
 						<el-tag type="info" effect="plain" size="small" class="path-tag">{{ activeProject.localPath }}</el-tag>
 					</el-tooltip>
+					<el-tag v-if="themeLabel" :type="projectStore.theme?.theme === 'unknown' ? 'warning' : 'success'" effect="plain" size="small">
+						{{ themeLabel }}
+					</el-tag>
 				</div>
 				<div class="header-right">
 					<el-tag v-if="devRunning" type="success" effect="dark" size="small">预览运行中</el-tag>
@@ -80,10 +83,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
-import { projectStore, activeProject, loadProjects, switchProject } from "./stores/project";
+import { projectStore, activeProject, loadProjects, switchProject, refreshTheme } from "./stores/project";
 import { api } from "./api";
 import { applyColorMode } from "./theme";
 import SetupWizard from "./views/SetupWizard.vue";
@@ -94,7 +97,14 @@ const showWizard = ref(false);
 const iconFailed = ref(false);
 const brandIconUrl = "/api/app/icon";
 
+const THEME_LABELS: Record<string, string> = { firefly: "FireFly", mizuki: "Mizuki", fuwari: "Fuwari", unknown: "未知主题" };
+const themeLabel = computed(() => {
+	const t = projectStore.theme?.theme;
+	return t ? THEME_LABELS[t] ?? t : "";
+});
+
 onMounted(async () => {
+	window.addEventListener("project-switched", refreshTheme);
 	await loadProjects();
 	await applySetupState();
 	refreshDev();

@@ -34,6 +34,15 @@
 					</el-radio-group>
 					<FieldTip text="仅对 EXE 生效：「直接退出」= 关闭应用窗口（或控制台窗口）时同时停止服务；「转入后台继续运行」= 关闭窗口后服务在后台继续运行，重新双击 FireflyAdminApp.exe 可秒开，也可在下方「停止服务」结束。立即生效，无需重启。" />
 				</el-form-item>
+
+				<el-form-item label="博客模式">
+					<el-radio-group v-model="form.blogMode">
+						<el-radio value="auto">自动识别</el-radio>
+						<el-radio value="firefly">FireFly 模式</el-radio>
+						<el-radio value="mizuki">Mizuki 模式</el-radio>
+					</el-radio-group>
+					<FieldTip text="决定管理后台按哪套主题约定工作（相册/日记/壁纸/配置表单等）。默认按当前项目的文件特征自动识别；若博客是魔改主题导致识别错误，可手动指定 FireFly 或 Mizuki 模式强制覆盖。切换后对当前激活项目立即生效。" />
+				</el-form-item>
 			</el-form>
 		</el-card>
 
@@ -44,7 +53,7 @@
 				</div>
 			</template>
 			<el-button @click="rerunWizard">重新运行初始设置向导</el-button>
-			<FieldTip text="重新打开首次使用的四步向导：界面配色 → 本地文件夹检测 → 远程仓库与密钥 → 同步。不会删除任何项目与配置。" />
+			<FieldTip text="重新打开首次使用的五步向导：界面配色 → 主题框架 → 本地文件夹检测 → 远程仓库与密钥 → 同步。不会删除任何项目与配置。" />
 			<el-button type="warning" plain style="margin-left: 12px" @click="resetDemo">重置为默认演示内容</el-button>
 			<FieldTip text="对当前项目的博客执行：清空文章与动态并写入一篇「测试」文章/一条「测试」动态，相册只留一个普通 + 一个加密演示相册，壁纸只保留 D01/M01。⚠ 会清空当前博客已有内容，请务必确认！" />
 			<div class="warn-tip" style="margin-top: 10px">
@@ -101,14 +110,16 @@
 import { onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api, type AppPreferences, type AppRuntime } from "../api";
-import { activeProject } from "../stores/project";
+import { activeProject, refreshTheme } from "../stores/project";
 import FieldTip from "../components/FieldTip.vue";
 import { applyColorMode } from "../theme";
 
 const loading = ref(false);
 const saving = ref(false);
-const form = ref<AppPreferences>({ uploadConvertAvif: true, closeAction: "exit", port: 5175, colorMode: "light" });
+const form = ref<AppPreferences>({ uploadConvertAvif: true, closeAction: "exit", port: 5175, colorMode: "light", blogMode: "auto" });
 const runtime = ref<AppRuntime | null>(null);
+/** 最近一次持久化的博客模式，用于判断保存时是否发生了切换 */
+const lastSavedMode = ref<"auto" | "firefly" | "mizuki">("auto");
 
 function onColorModeChange(mode: string) {
 	applyColorMode(mode);
@@ -121,6 +132,7 @@ async function load() {
 	try {
 		const [p, r] = await Promise.all([api.app.prefs(), api.app.runtime()]);
 		form.value = { ...p };
+		lastSavedMode.value = p.blogMode;
 		runtime.value = r;
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
@@ -130,11 +142,22 @@ async function load() {
 }
 
 async function save() {
+	const modeChanged = runtime.value !== null && form.value.blogMode !== lastSavedMode.value;
 	saving.value = true;
 	try {
 		const res = await api.app.savePrefs({ ...form.value });
 		form.value = { ...res.preferences };
-		ElMessage.success("已保存" + (res.preferences.port !== runtime.value?.port ? "（端口修改将在重启后生效）" : ""));
+		lastSavedMode.value = res.preferences.blogMode;
+		if (modeChanged) {
+			// 博客模式变了：刷新主题能力，并让各页面重新按能力渲染
+			await refreshTheme();
+			window.dispatchEvent(new CustomEvent("project-switched", { detail: activeProject?.value?.id ?? "" }));
+		}
+		ElMessage.success(
+			"已保存" +
+				(res.preferences.port !== runtime.value?.port ? "（端口修改将在重启后生效）" : "") +
+				(modeChanged ? "（博客模式已切换）" : "")
+		);
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	} finally {

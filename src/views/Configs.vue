@@ -83,7 +83,7 @@
 				<el-card shadow="never">
 					<template #header>
 						<div class="card-header">
-							<span style="font-weight: 600">src/config/{{ rawFile.file }}</span>
+							<span style="font-weight: 600">{{ rawFileLabel }}</span>
 							<el-button type="primary" :loading="saving" @click="saveRaw">保存</el-button>
 						</div>
 					</template>
@@ -99,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Codemirror } from "vue-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
@@ -107,6 +107,8 @@ import { api, type ConfigEntry, type FieldSpec } from "../api";
 
 const entries = ref<ConfigEntry[]>([]);
 const rawFiles = ref<{ file: string; size: number; mtime: number }[]>([]);
+/** 激活项目的配置布局：dir = src/config/*.ts；single = src/config.ts（Mizuki v8.x） */
+const configLayout = ref<"dir" | "single" | null>("dir");
 const activeKey = ref("");
 const mode = ref<"none" | "form" | "raw">("none");
 const currentEntry = ref<ConfigEntry | null>(null);
@@ -120,12 +122,21 @@ const jsExtensions = [javascript({ typescript: true })];
 onMounted(async () => {
 	try {
 		const [entryRes, rawRes] = await Promise.all([api.configs.entries(), api.configs.rawList()]);
+		configLayout.value = (entryRes.configLayout as "dir" | "single" | null) ?? "dir";
 		entries.value = entryRes.entries;
 		rawFiles.value = rawRes.files;
 		if (entries.value.length) onSelect(`form:${entries.value[0].file}`);
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	}
+});
+
+const rawFileLabel = computed(() => {
+	if (!rawFile.value) return "";
+	const f = rawFile.value.file;
+	if (f.startsWith("data/")) return `src/${f}`;
+	if (configLayout.value === "single") return `src/${f}`;
+	return `src/config/${f}`;
 });
 
 async function onSelect(key: string) {

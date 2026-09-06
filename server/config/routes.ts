@@ -1,13 +1,28 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Hono } from "hono";
-import { configRegistry, type FieldSpec } from "./registry.js";
+import { getConfigRegistry, type FieldSpec } from "./registry.js";
 import { readPath, writePath, type PathSegment } from "./ast.js";
 import { activeDirs, ensureInside } from "../paths.js";
+import { activeCapabilities } from "../theme.js";
 
+/** 配置/数据文件定位：Mizuki 额外允许 "data/<name>.ts" 指向 src/data/；v8.x 单文件布局指向 src/config.ts */
 function configFilePath(file: string): string {
-	if (!/^[A-Za-z0-9_-]+\.tsx?$/.test(file)) throw new Error("非法配置文件名");
-	return ensureInside(activeDirs().configDir, path.join(activeDirs().configDir, file));
+	const m = file.match(/^(data\/)?([A-Za-z0-9_-]+\.tsx?)$/);
+	if (!m) throw new Error("非法配置文件名");
+	const caps = activeCapabilities();
+	if (m[1]) {
+		if (caps.theme !== "mizuki") throw new Error("该主题不支持数据文件编辑");
+		const base = activeDirs().dataDir;
+		return ensureInside(base, path.join(base, m[2]));
+	}
+	if (caps.configLayout === "single" && (caps.theme === "mizuki" || caps.theme === "fuwari")) {
+		if (m[2] !== "config.ts") throw new Error("该主题的配置集中在 src/config.ts");
+		const base = activeDirs().srcDir;
+		return ensureInside(base, path.join(base, "config.ts"));
+	}
+	const base = activeDirs().configDir;
+	return ensureInside(base, path.join(base, m[2]));
 }
 
 function readConfig(file: string): string {
@@ -55,28 +70,51 @@ function prepareFieldValue(field: FieldSpec, value: unknown): unknown {
 }
 
 export const configRoutes = new Hono()
-	// 注册表元信息
-	.get("/", (c) => c.json({ entries: configRegistry }))
-	// 全部配置文件清单（供源码编辑）
+	// 注册表元信息（随激活项目的主题与配置布局切换）
+	.get("/", (c) => {
+		const caps = activeCapabilities();
+		return c.json({ theme: caps.theme, configLayout: caps.configLayout, entries: getConfigRegistry(caps.theme, caps.configLayout) });
+	})
+	// 全部配置文件清单（供源码编辑；Mizuki 额外列出 src/data/ 数据文件）
 	.get("/raw/all", (c) => {
-		const dir = activeDirs().configDir;
-		const files = fs
-			.readdirSync(dir)
-			.filter((f) => /\.tsx?$/.test(f))
-			.map((f) => {
-				const st = fs.statSync(path.join(dir, f));
-				return { file: f, size: st.size, mtime: st.mtimeMs };
-			})
-			.sort((a, b) => a.file.localeCompare(b.file));
+		const dirs = activeDirs();
+		const caps = activeCapabilities();
+		const listDir = (dir: string, prefix: string) =>
+			fs
+				.readdirSync(dir)
+				.filter((f) => /\.tsx?$/.test(f))
+				.map((f) => {
+					const st = fs.statSync(path.join(dir, f));
+					return { file: `${prefix}${f}`, size: st.size, mtime: st.mtimeMs };
+				});
+		let files: { file: string; size: number; mtime: number }[];
+		if (caps.configLayout === "single" && (caps.theme === "mizuki" || caps.theme === "fuwari")) {
+			// 单文件布局：src 顶层 .ts（排除 .d.ts），主要是 config.ts
+			files = fs.existsSync(dirs.srcDir)
+				? fs
+						.readdirSync(dirs.srcDir)
+						.filter((f) => /\.tsx?$/.test(f) && !/\.d\.tsx?$/.test(f))
+						.map((f) => {
+							const st = fs.statSync(path.join(dirs.srcDir, f));
+							return { file: f, size: st.size, mtime: st.mtimeMs };
+						})
+				: [];
+		} else {
+			files = fs.existsSync(dirs.configDir) ? listDir(dirs.configDir, "") : [];
+		}
+		if (caps.theme === "mizuki" && fs.existsSync(dirs.dataDir)) {
+			files.push(...listDir(dirs.dataDir, "data/"));
+		}
+		files.sort((a, b) => a.file.localeCompare(b.file));
 		return c.json({ files });
 	})
-	// 读取源码
-	.get("/raw/:file", (c) => {
+	// 读取源码（:file 可含 data/ 前缀，故用通配参数）
+	.get("/raw/:file{.+}", (c) => {
 		const file = c.req.param("file");
 		return c.json({ file, content: readConfig(file) });
 	})
 	// 保存源码
-	.put("/raw/:file", async (c) => {
+	.put("/raw/:file{.+}", async (c) => {
 		const file = c.req.param("file");
 		const body = (await c.req.json()) as { content: string };
 		if (typeof body.content !== "string") return c.json({ error: "参数错误" }, 400);
@@ -86,7 +124,8 @@ export const configRoutes = new Hono()
 	// 某个配置文件：所有注册字段的当前值
 	.get("/:file", (c) => {
 		const file = c.req.param("file");
-		const entry = configRegistry.find((e) => e.file === file);
+		const caps = activeCapabilities();
+		const entry = getConfigRegistry(caps.theme, caps.configLayout).find((e) => e.file === file);
 		if (!entry) return c.json({ error: "未注册的配置文件" }, 404);
 		const code = readConfig(file);
 		const fields = entry.fields.map((f) => {
@@ -98,7 +137,8 @@ export const configRoutes = new Hono()
 	// 批量写回字段（一次请求内顺序应用，只写一次文件）
 	.put("/:file/fields", async (c) => {
 		const file = c.req.param("file");
-		const entry = configRegistry.find((e) => e.file === file);
+		const caps = activeCapabilities();
+		const entry = getConfigRegistry(caps.theme, caps.configLayout).find((e) => e.file === file);
 		if (!entry) return c.json({ error: "未注册的配置文件" }, 404);
 		const body = (await c.req.json()) as { values: { path: string; value: unknown }[] };
 		if (!Array.isArray(body.values)) return c.json({ error: "参数错误" }, 400);

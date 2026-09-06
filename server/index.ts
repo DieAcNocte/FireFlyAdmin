@@ -12,6 +12,7 @@ import { configRoutes } from "./config/routes.js";
 import { gitRoutes } from "./routes/gitRoutes.js";
 import { blogRoutes } from "./routes/blogRoutes.js";
 import { setupRoutes } from "./routes/setup.js";
+import { activeCapabilities } from "./theme.js";
 
 const SEA_BUILD = typeof __SEA_BUILD !== "undefined" && __SEA_BUILD === "true";
 
@@ -44,6 +45,8 @@ app.route("/api", contentRoutes);
 app.route("/api", mediaRoutes);
 
 app.get("/api/health", (c) => c.json({ ok: true, time: Date.now() }));
+// 激活项目的主题与能力声明（前端据此渲染对应页面形态）
+app.get("/api/theme", (c) => c.json(activeCapabilities()));
 
 // ── 应用设置 / 运行时控制 ──
 app.get("/api/app/preferences", (c) => c.json(getPreferences()));

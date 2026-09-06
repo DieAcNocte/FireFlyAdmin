@@ -5,10 +5,17 @@
 			<div class="toolbar">
 				<span class="col-title">相册</span>
 				<div class="spacer" />
-				<el-button size="small" type="primary" @click="openCreate">
+				<el-button v-if="gallerySupported" size="small" type="primary" @click="openCreate">
 					<el-icon><Plus /></el-icon>&nbsp;新建
 				</el-button>
 			</div>
+			<el-alert
+				v-if="!gallerySupported && galleryTheme === 'fuwari'"
+				type="info"
+				:closable="false"
+				title="Fuwari 原型主题没有相册功能"
+				style="margin-bottom: 12px"
+			/>
 			<div v-loading="loading">
 				<el-card
 					v-for="(a, i) in albums"
@@ -26,7 +33,7 @@
 								{{ a.name || a.id }}
 								<el-tag v-if="a.password" type="warning" size="small">加密</el-tag>
 							</div>
-							<div class="album-sub">{{ a.id }} · {{ a.date || "未设置日期" }}</div>
+							<div class="album-sub">{{ a.id }} · {{ a.date || "未设置日期" }}<template v-if="a.photoCount !== undefined"> · {{ a.photoCount }} 张</template></div>
 							<div class="album-sub">{{ a.location || "—" }}</div>
 							<div class="album-tags">
 								<el-tag v-for="t in (a.tags as string[]) || []" :key="t" size="small" effect="plain">{{ t }}</el-tag>
@@ -40,8 +47,11 @@
 				</el-card>
 				<el-empty v-if="!loading && albums.length === 0" description="还没有相册，点击「新建」创建" :image-size="60" />
 			</div>
-			<el-divider>瀑布流列宽</el-divider>
-			<el-input-number v-model="columnWidth" :min="120" :max="600" style="width: 100%" />
+			<template v-if="galleryTheme !== 'scanner'">
+				<el-divider>瀑布流列宽</el-divider>
+				<el-input-number v-model="columnWidth" :min="120" :max="600" style="width: 100%" />
+			</template>
+			<el-alert v-else type="info" :closable="false" title="Mizuki 相册以目录存储：public/images/albums/<id>/（info.json + 图片）" class="mz-tip" />
 		</div>
 
 		<!-- 右：相册图片 -->
@@ -81,7 +91,7 @@
 					<el-input v-model="dialogForm.name" placeholder="如：手机壁纸" @input="suggestId" />
 				</el-form-item>
 				<el-form-item label="ID" required>
-					<el-input v-model="dialogForm.id" :disabled="editIndex !== null" placeholder="对应 public/gallery/<id>/ 目录" />
+					<el-input v-model="dialogForm.id" :disabled="editIndex !== null" :placeholder="galleryTheme === 'scanner' ? '对应 public/images/albums/<id>/ 目录' : '对应 public/gallery/<id>/ 目录'" />
 					<div class="form-tip">图片目录名，只允许字母/数字/-/_；创建后建议不要改动</div>
 				</el-form-item>
 				<el-form-item label="描述">
@@ -132,6 +142,7 @@ type Album = Record<string, unknown>;
 
 const albums = ref<Album[]>([]);
 const columnWidth = ref(240);
+const galleryTheme = ref<string>("firefly");
 const loading = ref(false);
 const saving = ref(false);
 const selectedIndex = ref(-1);
@@ -151,6 +162,8 @@ const dialogForm = ref({
 });
 
 const currentAlbum = computed(() => (selectedIndex.value >= 0 ? albums.value[selectedIndex.value] : null));
+/** 只有 FireFly / Mizuki 提供相册能力 */
+const gallerySupported = computed(() => galleryTheme.value === "firefly" || galleryTheme.value === "mizuki");
 
 onMounted(() => {
 	load();
@@ -165,8 +178,9 @@ async function load() {
 	loading.value = true;
 	try {
 		const res = await api.gallery.get();
+		galleryTheme.value = res.theme;
 		albums.value = res.albums;
-		columnWidth.value = res.columnWidth;
+		columnWidth.value = res.columnWidth ?? 240;
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	} finally {
@@ -247,7 +261,7 @@ async function saveAlbums() {
 			const target = albums.value[editIndex.value];
 			Object.assign(target, dialogForm.value, { tags: [...dialogForm.value.tags] });
 		}
-		await api.gallery.save(albums.value, columnWidth.value);
+		await api.gallery.save(albums.value, galleryTheme.value === "scanner" ? null : columnWidth.value);
 		ElMessage.success("相册已保存");
 		dialogVisible.value = false;
 		selectedIndex.value = -1;
@@ -262,6 +276,24 @@ async function saveAlbums() {
 
 async function removeAlbum(i: number) {
 	const a = albums.value[i];
+	if (galleryTheme.value === "scanner") {
+		// Mizuki：目录即相册，删除会连同图片目录一起移除
+		await ElMessageBox.confirm(
+			`确定删除相册「${a.name || a.id}」？将同时删除 public/images/albums/${a.id}/ 目录（含全部图片与 info.json），不可恢复。`,
+			"删除确认",
+			{ type: "warning" }
+		);
+		try {
+			await api.gallery.remove(String(a.id));
+			ElMessage.success("已删除");
+			selectedIndex.value = -1;
+			images.value = [];
+			await load();
+		} catch (e) {
+			ElMessage.error(e instanceof Error ? e.message : String(e));
+		}
+		return;
+	}
 	await ElMessageBox.confirm(
 		`确定删除相册「${a.name || a.id}」？此操作只从配置移除（public/gallery/${a.id}/ 下的图片文件保留，可手动清理）。`,
 		"删除确认",
@@ -446,5 +478,9 @@ function today(): string {
 	color: #909399;
 	font-size: 12px;
 	line-height: 1.4;
+}
+
+.mz-tip {
+	margin-top: 12px;
 }
 </style>

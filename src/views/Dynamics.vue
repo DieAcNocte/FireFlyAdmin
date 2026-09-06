@@ -1,14 +1,21 @@
 <template>
 	<div>
 		<div class="toolbar">
-			<el-button type="primary" @click="openCreate">
-				<el-icon><EditPen /></el-icon>&nbsp;发动态
+			<el-button v-if="capsSupported" type="primary" @click="openCreate">
+				<el-icon><EditPen /></el-icon>&nbsp;{{ capsPinned ? "发动态" : "发日记" }}
 			</el-button>
 			<div class="spacer" />
 			<el-button circle @click="load">
 				<el-icon><Refresh /></el-icon>
 			</el-button>
 		</div>
+		<el-alert
+			v-if="!capsSupported"
+			type="info"
+			:closable="false"
+			title="Fuwari 原型主题没有动态/日记功能，此处仅展示（当前为空）"
+			style="margin-bottom: 12px"
+		/>
 
 		<el-timeline v-loading="loading">
 			<el-timeline-item
@@ -29,9 +36,9 @@
 				</el-card>
 			</el-timeline-item>
 		</el-timeline>
-		<el-empty v-if="!loading && dynamics.length === 0" description="还没有动态" />
+		<el-empty v-if="!loading && dynamics.length === 0" :description="capsPinned ? '还没有动态' : '还没有日记'" />
 
-		<el-dialog v-model="dialogVisible" :title="editing ? '编辑动态' : '发动态'" width="640px">
+		<el-dialog v-model="dialogVisible" :title="editing ? (capsPinned ? '编辑动态' : '编辑日记') : capsPinned ? '发动态' : '发日记'" width="640px">
 			<el-form label-width="70px">
 				<el-form-item label="内容" required>
 					<el-input v-model="dialogForm.content" type="textarea" :rows="5" placeholder="支持 Markdown 语法，图片用 ![描述](url)" />
@@ -42,7 +49,7 @@
 				<el-form-item label="位置">
 					<el-input v-model="dialogForm.location" placeholder="如：广西（可选）" />
 				</el-form-item>
-				<el-form-item label="置顶">
+				<el-form-item v-if="capsPinned" label="置顶">
 					<el-switch v-model="dialogForm.pinned" />
 				</el-form-item>
 			</el-form>
@@ -69,8 +76,21 @@ const saving = ref(false);
 const dialogVisible = ref(false);
 const editing = ref<DynamicItem | null>(null);
 const dialogForm = ref({ content: "", published: "", location: "", pinned: false });
+/** Mizuki 日记无置顶概念，隐藏相关 UI */
+const capsPinned = ref(true);
+/** 当前主题是否提供动态/日记能力（Fuwari 没有） */
+const capsSupported = ref(true);
 
-onMounted(load);
+onMounted(async () => {
+	try {
+		const caps = await api.theme.get();
+		capsPinned.value = caps.dynamicsPinned;
+		capsSupported.value = caps.dynamics !== null;
+	} catch {
+		/* 探测失败按 FireFly 处理 */
+	}
+	await load();
+});
 
 async function load() {
 	loading.value = true;
@@ -119,7 +139,7 @@ async function save() {
 }
 
 async function remove(d: DynamicItem) {
-	await ElMessageBox.confirm(`确定删除这条动态（${d.published}）？`, "删除确认", { type: "warning" });
+	await ElMessageBox.confirm(`确定删除这条${capsPinned.value ? "动态" : "日记"}（${d.published}）？`, "删除确认", { type: "warning" });
 	try {
 		await api.dynamics.remove(d.file);
 		ElMessage.success("已删除");

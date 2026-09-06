@@ -11,9 +11,9 @@
 			</el-col>
 			<el-col :span="6">
 				<el-card shadow="never">
-					<el-statistic title="动态" :value="ov?.counts.dynamics ?? 0" />
+					<el-statistic :title="ov?.theme === 'mizuki' ? '日记' : '动态'" :value="ov?.counts.dynamics ?? 0" />
 					<div class="stat-extra">
-						<el-link type="primary" @click="$router.push('/dynamics')">发布动态</el-link>
+						<el-link type="primary" @click="$router.push('/dynamics')">{{ ov?.theme === 'mizuki' ? '管理日记' : '发布动态' }}</el-link>
 					</div>
 				</el-card>
 			</el-col>

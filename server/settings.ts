@@ -43,6 +43,8 @@ export interface AppPreferences {
 	port: number;
 	/** 管理后台界面配色 */
 	colorMode: "light" | "dark" | "system";
+	/** 博客模式：auto 按项目文件自动识别 | firefly / mizuki 手动指定（覆盖自动识别） */
+	blogMode: "auto" | "firefly" | "mizuki";
 }
 
 export interface Settings {
@@ -58,6 +60,7 @@ const DEFAULT_PREFERENCES = (): AppPreferences => ({
 	closeAction: "exit",
 	port: 5175,
 	colorMode: "light",
+	blogMode: "auto",
 });
 
 const DEFAULT_SETTINGS = (): Settings => {
@@ -132,13 +135,19 @@ export function savePreferences(input: Partial<AppPreferences>): AppPreferences 
 		closeAction: input.closeAction === "background" ? "background" : "exit",
 		port: Number.isInteger(input.port) ? (input.port as number) : s.preferences.port,
 		colorMode: input.colorMode === "dark" || input.colorMode === "system" ? input.colorMode : input.colorMode === "light" ? "light" : s.preferences.colorMode,
+		blogMode:
+			input.blogMode === "firefly" || input.blogMode === "mizuki"
+				? input.blogMode
+				: input.blogMode === "auto"
+					? "auto"
+					: s.preferences.blogMode,
 	};
 	s.preferences = next;
 	saveSettings(s);
 	return next;
 }
 
-/** 校验本地路径是否像一个 Firefly 类博客项目 */
+/** 校验本地路径是否像一个博客项目（FireFly / Mizuki 皆可：配置目录或单文件布局均可） */
 export function validateProjectPath(localPath: string): { ok: boolean; problems: string[] } {
 	const problems: string[] = [];
 	let stat: fs.Stats | null = null;
@@ -150,12 +159,13 @@ export function validateProjectPath(localPath: string): { ok: boolean; problems:
 	if (!stat || !stat.isDirectory()) {
 		return { ok: false, problems: ["目录不存在或不是文件夹"] };
 	}
-	const need = ["src/config", "src/content", "src/content/posts"];
-	for (const rel of need) {
-		if (!fs.existsSync(path.join(localPath, rel))) {
-			problems.push(`缺少 ${rel} 目录`);
-		}
+	const has = (rel: string) => fs.existsSync(path.join(localPath, rel));
+	// 配置：src/config/ 目录（FireFly / Mizuki v9+）或 src/config.ts 单文件（Mizuki v8.x）
+	if (!has("src/config") && !has("src/config.ts")) {
+		problems.push("缺少 src/config 目录或 src/config.ts");
 	}
+	if (!has("src/content")) problems.push("缺少 src/content 目录");
+	if (!has("src/content/posts")) problems.push("缺少 src/content/posts 目录");
 	return { ok: problems.length === 0, problems };
 }
 
