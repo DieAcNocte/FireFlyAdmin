@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+release/
+Releases/
+FireflyAdmin.exe
+FireflyAdminApp.exe
+WebView2Loader.dll
+Microsoft.Web.WebView2.Core.dll
+Microsoft.Web.WebView2.WinForms.dll
+native/
+
+# runtime data (project list, tokens) — never commit
+data/
+
+# logs
+*.log
+
+# local scratch / personal notes (never commit)
+local/
+
+# os
+.DS_Store
+Thumbs.db
+
+# zcode session files
+.zcode/

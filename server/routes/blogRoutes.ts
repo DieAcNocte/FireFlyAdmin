@@ -1,0 +1,58 @@
+import fs from "node:fs";
+import path from "node:path";
+import { Hono } from "hono";
+import { getActiveProject } from "../settings.js";
+import { startDev, stopDev, devStatus } from "../blog/dev.js";
+import { listPosts } from "../content/posts.js";
+import { listDynamics } from "../content/dynamics.js";
+import { readPath } from "../config/ast.js";
+import { activeDirs } from "../paths.js";
+import { gitStatus } from "../git/publish.js";
+
+export const blogRoutes = new Hono()
+	// 仪表盘总览
+	.get("/overview", async (c) => {
+		const project = getActiveProject();
+		const dirs = activeDirs();
+		let albums = 0;
+		try {
+			const code = fs.readFileSync(path.join(dirs.configDir, "galleryConfig.ts"), "utf-8");
+			const r = readPath(code, "galleryConfig", ["albums"]);
+			if (r.found && Array.isArray(r.value)) albums = r.value.length;
+		} catch {
+			/* ignore */
+		}
+		let git = null;
+		try {
+			const st = await gitStatus(project);
+			git = { branch: st.branch, changed: st.files.length, ahead: st.ahead, behind: st.behind };
+		} catch {
+			git = null;
+		}
+		const countFiles = (dir: string, test: (f: string) => boolean) => {
+			try {
+				return fs.readdirSync(dir).filter((f) => test(f)).length;
+			} catch {
+				return 0;
+			}
+		};
+		return c.json({
+			project: { id: project.id, name: project.name, localPath: project.localPath, remoteUrl: project.remoteUrl, branch: project.branch },
+			counts: {
+				posts: listPosts().length,
+				dynamics: listDynamics().length,
+				albums,
+				desktopWallpapers: countFiles(dirs.desktopWallpaperDir, (f) => /\.(avif|webp|png|jpe?g|gif)$/i.test(f)),
+				mobileWallpapers: countFiles(dirs.mobileWallpaperDir, (f) => /\.(avif|webp|png|jpe?g|gif)$/i.test(f)),
+			},
+			git,
+			dev: devStatus(),
+		});
+	})
+	.post("/dev", async (c) => {
+		const body = (await c.req.json()) as { action: "start" | "stop" };
+		const project = getActiveProject();
+		if (body.action === "start") return c.json(startDev(project));
+		return c.json(stopDev());
+	})
+	.get("/dev", (c) => c.json(devStatus()));
