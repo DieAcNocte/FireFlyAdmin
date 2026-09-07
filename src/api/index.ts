@@ -1,10 +1,17 @@
-/** 极简 API client：统一错误处理 */
+import { apiBase, serverToken, unauthorized, isGithubMode } from "./base";
+import { githubApi } from "./github";
+
+/** 极简 API client：统一错误处理（原生壳下请求指向配置的远程服务器） */
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-	const res = await fetch(`/api${url}`, {
-		method,
-		headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
-		body: body !== undefined ? JSON.stringify(body) : undefined,
-	});
+	const headers: Record<string, string> = {};
+	if (body !== undefined) headers["Content-Type"] = "application/json";
+	if (serverToken.value) headers["Authorization"] = `Bearer ${serverToken.value}`;
+	let res: Response;
+	try {
+		res = await fetch(`${apiBase()}/api${url}`, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+	} catch {
+		throw new Error("无法连接服务器，请检查电脑端服务是否运行、地址是否正确");
+	}
 	let data: any = null;
 	try {
 		data = await res.json();
@@ -12,6 +19,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 		/* 非 JSON 响应 */
 	}
 	if (!res.ok) {
+		if (res.status === 401) unauthorized.value = true;
 		throw new Error(data?.error || `请求失败 (${res.status})`);
 	}
 	return data as T;
@@ -112,6 +120,8 @@ export interface GalleryImage {
 	size: number;
 	mtime: number;
 	url: string;
+	/** urls.txt 外链照片（非仓库文件：不可删除/设封面，url 为完整 http 地址） */
+	remote?: boolean;
 }
 
 export interface ThemeCapabilities {
@@ -154,6 +164,10 @@ export interface AppPreferences {
 	colorMode: "light" | "dark" | "system";
 	/** 博客模式：auto 按项目自动识别 | firefly / mizuki 手动指定 */
 	blogMode: "auto" | "firefly" | "mizuki";
+	/** 允许局域网设备（手机/平板）访问（重启服务生效） */
+	lanAccess: boolean;
+	/** 局域网访问令牌（非本机请求需携带） */
+	accessToken: string;
 }
 
 export interface AppRuntime {
@@ -161,11 +175,13 @@ export interface AppRuntime {
 	pid: number;
 	port: number;
 	closeAction: "exit" | "background";
+	lanAccess: boolean;
+	lanAddresses: string[];
 }
 
 // ── API ──
 
-export const api = {
+const serverApi = {
 	projects: {
 		list: () => get<{ activeProjectId: string; projects: ProjectProfile[] }>("/projects"),
 		create: (p: Partial<ProjectProfile>) => post<{ ok: boolean; id: string }>("/projects", p),
@@ -181,6 +197,8 @@ export const api = {
 			counts: { posts: number; dynamics: number; albums: number; desktopWallpapers: number; mobileWallpapers: number };
 			git: { branch: string; changed: number; ahead: number; behind: number } | null;
 			dev: { running: boolean; cwd: string | null; logs: string[]; url: string };
+			/** 直连模式附加：最近提交 */
+			commits?: GitCommit[];
 		}>("/blog/overview"),
 	posts: {
 		list: () => get<{ posts: PostSummary[] }>("/posts"),
@@ -220,6 +238,8 @@ export const api = {
 		remove: (albumId: string) => del<{ ok: boolean }>(`/gallery/${encodeURIComponent(albumId)}`),
 		images: (albumId: string) => get<{ images: GalleryImage[] }>(`/gallery/${encodeURIComponent(albumId)}/images`),
 		setCover: (albumId: string, file: string) => post<{ ok: boolean }>(`/gallery/${encodeURIComponent(albumId)}/cover`, { file }),
+		/** 相册列表封面缩略图与照片数：仅直连模式实现（电脑端由已选相册的图片列表提供） */
+		covers: (_albums?: Record<string, unknown>[]) => Promise.resolve({ covers: {} as Record<string, string>, counts: {} as Record<string, number> }),
 	},
 	images: {
 		list: (target: string, albumId?: string) =>
@@ -262,15 +282,35 @@ export const api = {
 	},
 };
 
+/**
+ * 对外 API 入口：按连接模式分发。
+ * - server（默认）：电脑端 Hono 服务
+ * - github：GitHub 直连（仅 posts/dynamics/pages/theme/图片上传可用，其余模块由路由层隐藏）
+ */
+export const api: typeof serverApi = new Proxy(serverApi, {
+	get(target, prop) {
+		if (isGithubMode()) return Reflect.get(githubApi, prop);
+		return Reflect.get(target, prop);
+	},
+});
+
 /** 上传图片（multipart） */
 export async function uploadImages(target: string, files: File[], albumId?: string, convertAvif = false): Promise<{ saved: string[] }> {
+	if (isGithubMode()) {
+		return githubApi.uploads.images(target, files, albumId);
+	}
 	const form = new FormData();
 	form.append("target", target);
 	if (albumId) form.append("albumId", albumId);
 	if (convertAvif) form.append("convertAvif", "true");
 	for (const f of files) form.append("files", f);
-	const res = await fetch("/api/images", { method: "POST", body: form });
+	const headers: Record<string, string> = {};
+	if (serverToken.value) headers["Authorization"] = `Bearer ${serverToken.value}`;
+	const res = await fetch(`${apiBase()}/api/images`, { method: "POST", headers, body: form });
 	const data = await res.json();
-	if (!res.ok) throw new Error(data?.error || "上传失败");
+	if (!res.ok) {
+		if (res.status === 401) unauthorized.value = true;
+		throw new Error(data?.error || "上传失败");
+	}
 	return data;
 }

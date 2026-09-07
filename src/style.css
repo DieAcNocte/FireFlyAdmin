@@ -18,6 +18,9 @@ body {
 	-webkit-font-smoothing: antialiased;
 	background-color: var(--el-bg-color-page);
 	color: var(--el-text-color-primary);
+	/* App 手感：禁用下拉刷新/双击缩放的浏览器默认行为 */
+	overscroll-behavior: none;
+	-webkit-tap-highlight-color: transparent;
 }
 
 /* ── 深色模式：自定义样式适配 ── */
@@ -112,4 +115,54 @@ html.dark .wall-item {
 	overflow: auto;
 	white-space: pre-wrap;
 	word-break: break-all;
+}
+
+/* ── 移动端适配（窄屏）── */
+@media (max-width: 768px) {
+	/* 对话框 / 确认框近乎全屏 */
+	.el-dialog {
+		width: 94% !important;
+		max-width: 94vw;
+		margin-top: 5vh !important;
+	}
+
+	.el-message-box {
+		width: 90%;
+		max-width: 90vw;
+	}
+
+	/* 表单标签上置：窄屏放弃左侧标签布局 */
+	.el-form-item {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.el-form-item__label {
+		width: auto !important;
+		justify-content: flex-start;
+	}
+
+	/* 工具栏控件占满可用宽度 */
+	.toolbar .el-input {
+		width: 100% !important;
+	}
+
+	/* 分页器换行收简 */
+	.el-pagination {
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+
+	/* 描述列表单列 */
+	.el-descriptions {
+		--el-descriptions-table-border: 1px solid var(--el-border-color-lighter);
+	}
+}
+
+/* 移动端抽屉导航（teleport 到 body，需全局选择器） */
+.nav-drawer .el-drawer__body {
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
 }

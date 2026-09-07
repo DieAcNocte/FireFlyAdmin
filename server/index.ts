@@ -1,7 +1,9 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { ROOT_DIR, getPreferences, savePreferences } from "./settings.js";
 import { projectRoutes } from "./routes/projects.js";
@@ -35,6 +37,27 @@ app.onError((err, c) => {
 	return c.json({ error: err.message || "服务器内部错误" }, 500);
 });
 
+// CORS：允许局域网设备（Capacitor App / 手机浏览器）跨域访问 API
+app.use("/api/*", cors());
+
+/** 判断请求来源是否为本机回环地址（桌面端 WebView/本机浏览器免鉴权） */
+function isLoopbackRequest(c: { env: unknown }): boolean {
+	const incoming = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming;
+	const ip = incoming?.socket?.remoteAddress ?? "";
+	return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip === "localhost";
+}
+
+// 访问令牌：设置了 accessToken 时，非本机来源的请求必须携带
+// （Authorization: Bearer <token> 请求头，或 ?token= 查询参数——后者供 <img> 等无法设请求头的资源使用）
+app.use("/api/*", async (c, next) => {
+	const token = getPreferences().accessToken;
+	if (!token) return next();
+	if (isLoopbackRequest(c)) return next();
+	const auth = c.req.header("authorization") ?? "";
+	if (auth === `Bearer ${token}` || c.req.query("token") === token) return next();
+	return c.json({ error: "未授权：请在连接设置中填写访问令牌" }, 401);
+});
+
 app.route("/api/projects", projectRoutes);
 app.route("/api/configs", configRoutes);
 app.route("/api/gallery", galleryRoutes);
@@ -56,6 +79,9 @@ app.put("/api/app/preferences", async (c) => {
 		closeAction?: "exit" | "background";
 		port?: number;
 		colorMode?: "light" | "dark" | "system";
+		blogMode?: "auto" | "firefly" | "mizuki";
+		lanAccess?: boolean;
+		accessToken?: string;
 	};
 	if (body.port !== undefined) {
 		const port = Number(body.port);
@@ -65,12 +91,25 @@ app.put("/api/app/preferences", async (c) => {
 	}
 	return c.json({ ok: true, preferences: savePreferences(body) });
 });
+/** 收集本机局域网 IPv4 地址，供手机端填写的访问地址展示 */
+function lanAddresses(port: number): string[] {
+	const out: string[] = [];
+	for (const list of Object.values(os.networkInterfaces())) {
+		for (const ni of list ?? []) {
+			if (ni.family === "IPv4" && !ni.internal) out.push(`http://${ni.address}:${port}`);
+		}
+	}
+	return out;
+}
+
 app.get("/api/app/runtime", (c) =>
 	c.json({
 		sea: SEA_BUILD,
 		pid: process.pid,
 		port: PORT,
 		closeAction: getPreferences().closeAction,
+		lanAccess: getPreferences().lanAccess,
+		lanAddresses: getPreferences().lanAccess ? lanAddresses(PORT) : [],
 	})
 );
 app.post("/api/app/stop", (c) => {
@@ -160,8 +199,15 @@ async function main() {
 		});
 	}
 	PORT = Number(process.env.PORT || getPreferences().port || 5175);
-	const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT }, (info) => {
+	// 局域网访问开关：开启后监听所有网卡（手机/平板可访问），否则仅本机
+	const hostname = getPreferences().lanAccess ? "0.0.0.0" : "127.0.0.1";
+	const server = serve({ fetch: app.fetch, hostname, port: PORT }, (info) => {
 		console.log(`[firefly-admin] 管理后台已启动: http://127.0.0.1:${info.port}`);
+		if (getPreferences().lanAccess) {
+			const addrs = lanAddresses(info.port);
+			if (addrs.length) console.log(`[firefly-admin] 局域网访问: ${addrs.join(", ")}`);
+			else console.log("[firefly-admin] 局域网访问已开启，但未检测到局域网网卡地址");
+		}
 		// 双击 EXE 启动时自动打开浏览器
 		if (SEA_BUILD && process.env.NO_OPEN !== "1") {
 			openBrowser(`http://127.0.0.1:${info.port}`);

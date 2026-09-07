@@ -1,0 +1,530 @@
+{
+	"source": "CuteLeaf/Firefly@master + 本地壁纸/相册图片外链镜像",
+	"generated": "2026-09-07T11:30:51.557Z",
+	"files": [
+		{
+			"path": "public/gallery/encrypted-test/urls.txt",
+			"size": 435
+		},
+		{
+			"path": "public/gallery/firefly-2026/1.webp",
+			"size": 173362
+		},
+		{
+			"path": "public/gallery/firefly-2026/cover.webp",
+			"size": 264116
+		},
+		{
+			"path": "public/gallery/firefly-2026/urls.txt",
+			"size": 435
+		},
+		{
+			"path": "remote/docs-firefly.cuteleaf.cn/logo.png",
+			"size": 27339
+		},
+		{
+			"path": "remote/s41.ax1x.com/2026/05/13/peXs2dA.webp",
+			"size": 189400
+		},
+		{
+			"path": "remote/s41.ax1x.com/2026/05/13/peXsfit.webp",
+			"size": 305376
+		},
+		{
+			"path": "remote/s41.ax1x.com/2026/05/13/peXshJP.webp",
+			"size": 238246
+		},
+		{
+			"path": "remote/s41.ax1x.com/2026/05/13/peXsRII.webp",
+			"size": 254774
+		},
+		{
+			"path": "remote/s41.ax1x.com/2026/05/13/peXyf0J.jpg",
+			"size": 2127974
+		},
+		{
+			"path": "remote/s41.ax1x.com/2026/05/13/peXyh79.jpg",
+			"size": 2289087
+		},
+		{
+			"path": "remote/s41.ax1x.com/2026/05/13/peXyWm4.jpg",
+			"size": 2089869
+		},
+		{
+			"path": "src/assets/images/avatar.webp",
+			"size": 70002
+		},
+		{
+			"path": "src/assets/images/DesktopWallpaper/d1.webp",
+			"size": 172520
+		},
+		{
+			"path": "src/assets/images/DesktopWallpaper/d2.webp",
+			"size": 135718
+		},
+		{
+			"path": "src/assets/images/DesktopWallpaper/d3.webp",
+			"size": 240974
+		},
+		{
+			"path": "src/assets/images/DesktopWallpaper/d4.webp",
+			"size": 174498
+		},
+		{
+			"path": "src/assets/images/DesktopWallpaper/d5.webp",
+			"size": 134568
+		},
+		{
+			"path": "src/assets/images/DesktopWallpaper/d6.webp",
+			"size": 163832
+		},
+		{
+			"path": "src/assets/images/logo/firefly-dark.png",
+			"size": 4269
+		},
+		{
+			"path": "src/assets/images/logo/firefly-light.png",
+			"size": 3618
+		},
+		{
+			"path": "src/assets/images/MobileWallpaper/m1.webp",
+			"size": 301024
+		},
+		{
+			"path": "src/assets/images/MobileWallpaper/m2.webp",
+			"size": 64506
+		},
+		{
+			"path": "src/assets/images/MobileWallpaper/m3.webp",
+			"size": 303458
+		},
+		{
+			"path": "src/assets/images/MobileWallpaper/m4.webp",
+			"size": 327920
+		},
+		{
+			"path": "src/assets/images/MobileWallpaper/m5.webp",
+			"size": 215522
+		},
+		{
+			"path": "src/assets/images/MobileWallpaper/m6.webp",
+			"size": 190446
+		},
+		{
+			"path": "src/components/README.md",
+			"size": 5002
+		},
+		{
+			"path": "src/config/analyticsConfig.ts",
+			"size": 1579
+		},
+		{
+			"path": "src/config/announcementConfig.ts",
+			"size": 470
+		},
+		{
+			"path": "src/config/backgroundWallpaper.ts",
+			"size": 7995
+		},
+		{
+			"path": "src/config/booknavConfig.ts",
+			"size": 3788
+		},
+		{
+			"path": "src/config/commentConfig.ts",
+			"size": 2878
+		},
+		{
+			"path": "src/config/coverImageConfig.ts",
+			"size": 1138
+		},
+		{
+			"path": "src/config/displaySettingsConfig.ts",
+			"size": 2928
+		},
+		{
+			"path": "src/config/dynamicConfig.ts",
+			"size": 1432
+		},
+		{
+			"path": "src/config/effectsConfig.ts",
+			"size": 1018
+		},
+		{
+			"path": "src/config/expressiveCodeConfig.ts",
+			"size": 1484
+		},
+		{
+			"path": "src/config/fontConfig.ts",
+			"size": 3915
+		},
+		{
+			"path": "src/config/footerConfig.ts",
+			"size": 248
+		},
+		{
+			"path": "src/config/friendsConfig.ts",
+			"size": 1977
+		},
+		{
+			"path": "src/config/galleryConfig.ts",
+			"size": 1827
+		},
+		{
+			"path": "src/config/index.ts",
+			"size": 2834
+		},
+		{
+			"path": "src/config/licenseConfig.ts",
+			"size": 906
+		},
+		{
+			"path": "src/config/mermaidConfig.ts",
+			"size": 583
+		},
+		{
+			"path": "src/config/musicConfig.ts",
+			"size": 1869
+		},
+		{
+			"path": "src/config/navBarConfig.ts",
+			"size": 4595
+		},
+		{
+			"path": "src/config/pioConfig.ts",
+			"size": 4253
+		},
+		{
+			"path": "src/config/plantumlConfig.ts",
+			"size": 1312
+		},
+		{
+			"path": "src/config/profileConfig.ts",
+			"size": 1260
+		},
+		{
+			"path": "src/config/README.md",
+			"size": 4622
+		},
+		{
+			"path": "src/config/sidebarConfig.ts",
+			"size": 8265
+		},
+		{
+			"path": "src/config/siteConfig.ts",
+			"size": 13242
+		},
+		{
+			"path": "src/config/sponsorConfig.ts",
+			"size": 1165
+		},
+		{
+			"path": "src/constants/constants.ts",
+			"size": 763
+		},
+		{
+			"path": "src/constants/icon.ts",
+			"size": 772
+		},
+		{
+			"path": "src/content.config.ts",
+			"size": 1324
+		},
+		{
+			"path": "src/content/dynamic/2026-07-15-010756.md",
+			"size": 480
+		},
+		{
+			"path": "src/content/dynamic/2026-07-15-020613.md",
+			"size": 68
+		},
+		{
+			"path": "src/content/dynamic/2026-07-15-021127.md",
+			"size": 78
+		},
+		{
+			"path": "src/content/dynamic/2026-07-15-161529.md",
+			"size": 124
+		},
+		{
+			"path": "src/content/posts/code-examples.md",
+			"size": 7064
+		},
+		{
+			"path": "src/content/posts/draft.md",
+			"size": 539
+		},
+		{
+			"path": "src/content/posts/firefly.md",
+			"size": 1982
+		},
+		{
+			"path": "src/content/posts/guide/index.md",
+			"size": 6506
+		},
+		{
+			"path": "src/content/posts/images/1.webp",
+			"size": 144996
+		},
+		{
+			"path": "src/content/posts/images/both-grid.webp",
+			"size": 217040
+		},
+		{
+			"path": "src/content/posts/images/both-list.webp",
+			"size": 189498
+		},
+		{
+			"path": "src/content/posts/images/docusaurus.webp",
+			"size": 112124
+		},
+		{
+			"path": "src/content/posts/images/firefly1.webp",
+			"size": 296706
+		},
+		{
+			"path": "src/content/posts/images/firefly2.webp",
+			"size": 264116
+		},
+		{
+			"path": "src/content/posts/images/firefly3.webp",
+			"size": 209472
+		},
+		{
+			"path": "src/content/posts/images/github.webp",
+			"size": 92744
+		},
+		{
+			"path": "src/content/posts/images/left-grid3.webp",
+			"size": 209932
+		},
+		{
+			"path": "src/content/posts/images/left-list.webp",
+			"size": 177850
+		},
+		{
+			"path": "src/content/posts/images/masonry.webp",
+			"size": 226206
+		},
+		{
+			"path": "src/content/posts/images/obsidian.webp",
+			"size": 92554
+		},
+		{
+			"path": "src/content/posts/images/right-grid2.webp",
+			"size": 192740
+		},
+		{
+			"path": "src/content/posts/images/vitepress.webp",
+			"size": 84282
+		},
+		{
+			"path": "src/content/posts/katex-math-example.md",
+			"size": 2013
+		},
+		{
+			"path": "src/content/posts/markdown-extended.md",
+			"size": 4847
+		},
+		{
+			"path": "src/content/posts/markdown-mermaid.md",
+			"size": 4899
+		},
+		{
+			"path": "src/content/posts/markdown-tutorial.md",
+			"size": 15723
+		},
+		{
+			"path": "src/content/posts/mdx-example.mdx",
+			"size": 2305
+		},
+		{
+			"path": "src/content/posts/video.md",
+			"size": 1075
+		},
+		{
+			"path": "src/content/spec/about.md",
+			"size": 1547
+		},
+		{
+			"path": "src/content/spec/guestbook.md",
+			"size": 247
+		},
+		{
+			"path": "src/env.d.ts",
+			"size": 705
+		},
+		{
+			"path": "src/global.d.ts",
+			"size": 1223
+		},
+		{
+			"path": "src/i18n/i18nKey.ts",
+			"size": 7797
+		},
+		{
+			"path": "src/i18n/languages/en.ts",
+			"size": 8968
+		},
+		{
+			"path": "src/i18n/languages/ja.ts",
+			"size": 10270
+		},
+		{
+			"path": "src/i18n/languages/ru.ts",
+			"size": 12532
+		},
+		{
+			"path": "src/i18n/languages/zh_CN.ts",
+			"size": 8796
+		},
+		{
+			"path": "src/i18n/languages/zh_TW.ts",
+			"size": 8820
+		},
+		{
+			"path": "src/i18n/translation.ts",
+			"size": 1073
+		},
+		{
+			"path": "src/pages/robots.txt.ts",
+			"size": 318
+		},
+		{
+			"path": "src/pages/rss.xml.ts",
+			"size": 2032
+		},
+		{
+			"path": "src/plugins/rehype-component-github-card.mjs",
+			"size": 3757
+		},
+		{
+			"path": "src/plugins/rehype-email-protection.mjs",
+			"size": 3372
+		},
+		{
+			"path": "src/plugins/rehype-figure.mjs",
+			"size": 1242
+		},
+		{
+			"path": "src/plugins/rehype-mermaid.mjs",
+			"size": 1181
+		},
+		{
+			"path": "src/plugins/remark-directive-rehype.js",
+			"size": 2447
+		},
+		{
+			"path": "src/plugins/remark-excerpt.js",
+			"size": 466
+		},
+		{
+			"path": "src/plugins/remark-mermaid.js",
+			"size": 419
+		},
+		{
+			"path": "src/plugins/remark-reading-time.mjs",
+			"size": 492
+		},
+		{
+			"path": "src/styles/custom-scrollbar.css",
+			"size": 1552
+		},
+		{
+			"path": "src/styles/expressive-code.css",
+			"size": 947
+		},
+		{
+			"path": "src/styles/fancybox-custom.css",
+			"size": 2248
+		},
+		{
+			"path": "src/styles/layout-styles.css",
+			"size": 21904
+		},
+		{
+			"path": "src/styles/main.css",
+			"size": 18021
+		},
+		{
+			"path": "src/styles/markdown.css",
+			"size": 2587
+		},
+		{
+			"path": "src/styles/navbar.css",
+			"size": 12227
+		},
+		{
+			"path": "src/styles/photoswipe.css",
+			"size": 859
+		},
+		{
+			"path": "src/styles/scrollbar.css",
+			"size": 1918
+		},
+		{
+			"path": "src/styles/toc.css",
+			"size": 1310
+		},
+		{
+			"path": "src/styles/transition.css",
+			"size": 2642
+		},
+		{
+			"path": "src/styles/waves.css",
+			"size": 686
+		},
+		{
+			"path": "src/styles/widget-responsive.css",
+			"size": 9592
+		},
+		{
+			"path": "src/types/bangumi.ts",
+			"size": 1423
+		},
+		{
+			"path": "src/types/config.ts",
+			"size": 20675
+		},
+		{
+			"path": "src/utils/content-utils.ts",
+			"size": 3297
+		},
+		{
+			"path": "src/utils/date-utils.ts",
+			"size": 1462
+		},
+		{
+			"path": "src/utils/icon-loader.ts",
+			"size": 2972
+		},
+		{
+			"path": "src/utils/image-utils.ts",
+			"size": 5123
+		},
+		{
+			"path": "src/utils/language-utils.ts",
+			"size": 1017
+		},
+		{
+			"path": "src/utils/layout-utils.ts",
+			"size": 2136
+		},
+		{
+			"path": "src/utils/navigation-utils.ts",
+			"size": 3659
+		},
+		{
+			"path": "src/utils/responsive-utils.ts",
+			"size": 4370
+		},
+		{
+			"path": "src/utils/setting-utils.ts",
+			"size": 19430
+		},
+		{
+			"path": "src/utils/url-utils.ts",
+			"size": 1991
+		}
+	]
+}

@@ -147,7 +147,7 @@
 		<el-dialog v-model="pickerVisible" :title="pickerKind === 'desktop' ? '选择桌面壁纸' : '选择移动壁纸'" width="720px">
 			<div class="picker-toolbar">
 				<el-button size="small" @click="uploadForPicker">上传新图片</el-button>
-				<el-checkbox v-model="convertAvif" size="small">上传时转 AVIF</el-checkbox>
+				<el-checkbox v-if="!isGithubMode()" v-model="convertAvif" size="small">上传时转 AVIF</el-checkbox>
 				<el-button size="small" circle @click="refreshPicker">
 					<el-icon><Refresh /></el-icon>
 				</el-button>
@@ -160,7 +160,7 @@
 					:class="{ selected: pickerSelected.has(img.name) }"
 					@click="togglePick(img.name)"
 				>
-					<el-image :src="img.url" fit="cover" class="picker-thumb" />
+					<el-image :src="apiUrl(img.url)" fit="cover" class="picker-thumb" />
 					<div class="picker-name">{{ img.name }}</div>
 					<el-icon v-if="pickerSelected.has(img.name)" class="picker-check"><CircleCheckFilled /></el-icon>
 				</div>
@@ -182,6 +182,8 @@ import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Refresh, CircleCheckFilled } from "@element-plus/icons-vue";
 import { api, uploadImages, type ImageInfo } from "../api";
+import { githubApi } from "../api/github";
+import { apiUrl, isGithubMode } from "../api/base";
 
 const theme = ref<"firefly" | "mizuki" | "unknown">("firefly");
 /** Mizuki 配置布局：dir = v9+（src/config/）；single = v8.x（src/config.ts，全屏壁纸无 enable 字段） */
@@ -304,6 +306,7 @@ async function load() {
 					showName: l.showName === true ? true : undefined,
 				}))
 			: [];
+		await loadGhPreviews();
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	} finally {
@@ -329,6 +332,7 @@ async function loadMizuki() {
 		mz.value.blur = Number(val(wall.fields, "blur") ?? 1);
 		mz.value.fullDesktop = asStrings(val(wall.fields, "src.desktop"));
 		mz.value.fullMobile = asStrings(val(wall.fields, "src.mobile"));
+		await loadGhPreviews();
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	} finally {
@@ -336,23 +340,53 @@ async function loadMizuki() {
 	}
 }
 
+/** 直连模式：配置引用壁纸的本地 blob 预览（键 = kind/文件名） */
+const ghPreviews = ref<Record<string, string>>({});
+
+/** 配置项 → 壁纸目录内文件名（各主题/布局的路径约定差异在此抹平） */
+function wallItemRel(item: string, kind: "desktop" | "mobile"): string {
+	if (theme.value === "mizuki") {
+		if (configLayout.value === "single") return item.replace(/^\/?images\//, "");
+		return item.replace(/^\/+/, "").replace(/^(desktop|mobile)-banner\//, "");
+	}
+	if (item.startsWith("/")) return item.replace(/^\/+/, "");
+	return item.replace(/^assets\/images\/(DesktopWallpaper|MobileWallpaper)\//, "");
+}
+
+/** 直连模式：把配置引用的壁纸图片拉成本地 blob URL 供预览 */
+async function loadGhPreviews() {
+	if (!isGithubMode()) return;
+	const jobs: { kind: "desktop" | "mobile"; items: string[] }[] = [
+		{ kind: "desktop", items: [...v.value.desktop, ...mz.value.fullDesktop, ...mz.value.bannerDesktop] },
+		{ kind: "mobile", items: [...v.value.mobile, ...mz.value.fullMobile, ...mz.value.bannerMobile] },
+	];
+	const map: Record<string, string> = {};
+	for (const job of jobs) {
+		let dir: string;
+		try {
+			dir = await githubApi.media.dir(job.kind === "desktop" ? "wallpaper-desktop" : "wallpaper-mobile");
+		} catch {
+			continue;
+		}
+		for (const item of job.items) {
+			if (/^https?:\/\//.test(item)) continue;
+			const rel = wallItemRel(item, job.kind);
+			try {
+				map[`${job.kind}/${rel}`] = URL.createObjectURL(await githubApi.media.blob(`${dir}/${rel}`));
+			} catch {
+				/* 单张失败不影响其他 */
+			}
+		}
+	}
+	ghPreviews.value = map;
+}
+
 /** 壁纸缩略图预览 URL（路径约定随主题与布局不同） */
 function wallPreview(item: string, kind: "desktop" | "mobile"): string | undefined {
 	if (/^https?:\/\//.test(item)) return item;
-	if (theme.value === "mizuki") {
-		if (configLayout.value === "single") {
-			// v8.x：图片在 public/images，配置写 /images/<name>
-			const rel = item.replace(/^\/?images\//, "");
-			return `/api/media?root=${kind}&f=${encodeURIComponent(rel)}`;
-		}
-		const rel = item.replace(/^\/+/, "").replace(/^(desktop|mobile)-banner\//, "");
-		return `/api/media?root=${kind}&f=${encodeURIComponent(rel)}`;
-	}
-	if (item.startsWith("/")) {
-		return `/api/media?root=${kind}&f=${encodeURIComponent(item.replace(/^\/+/, ""))}`;
-	}
-	const rel = item.replace(/^assets\/images\/(DesktopWallpaper|MobileWallpaper)\//, "");
-	return `/api/media?root=${kind}&f=${encodeURIComponent(rel)}`;
+	const rel = wallItemRel(item, kind);
+	if (isGithubMode()) return ghPreviews.value[`${kind}/${rel}`];
+	return apiUrl(`/api/media?root=${kind}&f=${encodeURIComponent(rel)}`);
 }
 
 function move(arr: string[], i: number, dir: -1 | 1) {

@@ -7,11 +7,18 @@ import * as ElementPlusIconsVue from "@element-plus/icons-vue";
 import App from "./App.vue";
 import router from "./router";
 import "./style.css";
+import { initApiBase } from "./api/base";
 
-const app = createApp(App);
-app.use(router);
-app.use(ElementPlus, { locale: zhCn });
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-	app.component(key, component);
+async function bootstrap() {
+	// 原生壳下先读取服务器地址/令牌，再挂载应用（API 层依赖）
+	await initApiBase();
+	const app = createApp(App);
+	app.use(router);
+	app.use(ElementPlus, { locale: zhCn });
+	for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+		app.component(key, component);
+	}
+	app.mount("#app");
 }
-app.mount("#app");
+
+bootstrap();

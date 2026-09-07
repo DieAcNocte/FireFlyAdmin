@@ -1,0 +1,58 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+
+    repositories {
+        // 阿里云镜像优先（国内直连，无需代理）；google()/mavenCentral() 兜底
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        google()
+        mavenCentral()
+    }
+}
+
+// node_modules 里 Capacitor 库模块自带 buildscript（google()/mavenCentral()），
+// 这里给所有子工程的 buildscript 也注入阿里云镜像（列表叠加，先命中先用），
+// 避免其直连 dl.google.com 被墙导致 Sync 失败
+subprojects {
+    buildscript {
+        repositories {
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/central' }
+            maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        }
+    }
+    // kotlin-stdlib 1.8+ 已把 jdk7/jdk8 变体合并进主库；部分传递依赖仍拉旧版
+    // kotlin-stdlib-jdk7/jdk8（如 1.6.21，含真实类文件），导致 Duplicate class 冲突。
+    // 统一强制到 1.8.22（该版本 jdk7/jdk8 构件为空壳，仅依赖主库）。
+    configurations.all {
+        resolutionStrategy {
+            force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

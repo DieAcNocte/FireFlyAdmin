@@ -1,5 +1,40 @@
 <template>
-	<div class="configs-layout">
+	<!-- 手机端：二级菜单 hub，点击进入独立编辑页 -->
+	<div v-if="isMobile" v-loading="loading" class="hub">
+		<div class="hub-title">可视化配置</div>
+		<el-card v-for="e in entries" :key="e.file" shadow="never" class="hub-item" @click="router.push({ path: '/configs/edit', query: { file: e.file } })">
+			<div class="hub-row">
+				<div>
+					<div class="hub-name">{{ e.title }}</div>
+					<div class="hub-desc">{{ e.description }}</div>
+				</div>
+				<el-icon class="hub-arrow"><ArrowRight /></el-icon>
+			</div>
+		</el-card>
+		<div class="hub-title">源码编辑（全部配置文件）</div>
+		<el-card shadow="never" class="hub-item" @click="router.push('/configs/raw')">
+			<div class="hub-row">
+				<div>
+					<div class="hub-name">源码编辑</div>
+					<div class="hub-desc">{{ rawFiles.length }} 个配置文件，直接修改 TypeScript 源码</div>
+				</div>
+				<el-icon class="hub-arrow"><ArrowRight /></el-icon>
+			</div>
+		</el-card>
+		<div class="hub-title">页面管理</div>
+		<el-card shadow="never" class="hub-item" @click="router.push('/pages')">
+			<div class="hub-row">
+				<div>
+					<div class="hub-name">页面管理</div>
+					<div class="hub-desc">编辑 about / guestbook / friends 等单页（src/content/spec）</div>
+				</div>
+				<el-icon class="hub-arrow"><ArrowRight /></el-icon>
+			</div>
+		</el-card>
+	</div>
+
+	<!-- 电脑端：保持左侧菜单 + 右侧面板的布局 -->
+	<div v-else class="configs-layout" v-loading="loading">
 		<div class="side">
 			<div class="side-title">可视化配置</div>
 			<el-menu :default-active="activeKey" @select="onSelect">
@@ -18,204 +53,92 @@
 		</div>
 
 		<div class="main-panel">
-			<!-- 可视化表单 -->
-			<template v-if="mode === 'form' && currentEntry">
-				<el-card shadow="never" v-loading="formLoading">
-					<template #header>
-						<div class="card-header">
-							<div>
-								<span style="font-weight: 600">{{ currentEntry.title }}</span>
-								<span class="desc">{{ currentEntry.description }}</span>
-							</div>
-							<el-button type="primary" :loading="saving" @click="saveForm">保存</el-button>
-						</div>
-					</template>
-					<el-form label-width="150px">
-						<template v-for="f in formValues" :key="f.path">
-							<el-form-item :label="f.label">
-								<el-alert v-if="f.readError" type="warning" :closable="false" :title="`无法解析：${f.readError}`" style="width: 100%" />
-								<template v-else>
-									<el-input v-if="f.type === 'string'" v-model="f.value as string" />
-									<el-input v-else-if="f.type === 'text'" v-model="f.value as string" type="textarea" :rows="3" />
-									<el-input-number v-else-if="f.type === 'number'" v-model="f.value as number" style="width: 200px" />
-									<el-switch v-else-if="f.type === 'boolean'" v-model="f.value as boolean" />
-									<el-select v-else-if="f.type === 'select'" v-model="f.value" style="width: 240px">
-										<el-option v-for="o in f.options" :key="o" :label="o" :value="o" />
-									</el-select>
-									<!-- 字符串数组 -->
-									<div v-else-if="f.type === 'stringArray'" class="list-editor">
-										<div v-for="(_, i) in f.value as string[]" :key="i" class="list-row">
-											<el-input v-model="(f.value as string[])[i]" />
-											<el-button text type="danger" @click="(f.value as string[]).splice(i, 1)">删除</el-button>
-										</div>
-										<el-button size="small" @click="(f.value as string[]).push('')">+ 添加</el-button>
-									</div>
-									<!-- 对象数组 -->
-									<el-table v-else-if="f.type === 'arrayOfObjects'" :data="f.value as Record<string, unknown>[]" size="small" border>
-										<el-table-column v-for="itemF in f.itemFields" :key="itemF.key" :label="itemF.label" :min-width="itemF.type === 'text' ? 180 : 130">
-											<template #default="{ row }">
-												<el-switch v-if="itemF.type === 'boolean'" v-model="row[itemF.key]" />
-												<el-input v-else type="textarea" :rows="itemF.type === 'text' ? 2 : 1" v-model="row[itemF.key]" :placeholder="itemF.placeholder" />
-											</template>
-										</el-table-column>
-										<el-table-column label="" width="60">
-											<template #default="{ $index }">
-												<el-button size="small" text type="danger" @click="(f.value as Record<string, unknown>[]).splice($index, 1)">删</el-button>
-											</template>
-										</el-table-column>
-									</el-table>
-									<el-button v-if="f.type === 'arrayOfObjects'" size="small" style="margin-top: 8px" @click="addRow(f)">
-										+ 添加一项
-									</el-button>
-									<div v-else-if="f.type === 'wallpaperDesktop' || f.type === 'wallpaperMobile'" class="tip">
-										请前往「主页图片」页面管理壁纸
-									</div>
-									<div v-if="f.tip" class="tip">{{ f.tip }}</div>
-								</template>
-							</el-form-item>
-						</template>
-					</el-form>
-				</el-card>
-			</template>
-
-			<!-- 源码编辑 -->
-			<template v-else-if="mode === 'raw' && rawFile">
-				<el-card shadow="never">
-					<template #header>
-						<div class="card-header">
-							<span style="font-weight: 600">{{ rawFileLabel }}</span>
-							<el-button type="primary" :loading="saving" @click="saveRaw">保存</el-button>
-						</div>
-					</template>
-					<div class="code-editor">
-						<Codemirror v-model="rawFile.content" :extensions="jsExtensions" :style="{ height: '100%' }" />
-					</div>
-				</el-card>
-			</template>
-
+			<ConfigForm v-if="activeKind === 'form' && activeName" :key="activeName" :file="activeName" />
+			<ConfigRawEditor v-else-if="activeKind === 'raw' && activeName" :key="activeName" :file="activeName" />
 			<el-empty v-else description="从左侧选择一个配置项" />
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { Codemirror } from "vue-codemirror";
-import { javascript } from "@codemirror/lang-javascript";
-import { api, type ConfigEntry, type FieldSpec } from "../api";
+import { useRouter } from "vue-router";
+import { ArrowRight, Document, MagicStick } from "@element-plus/icons-vue";
+import { api, type ConfigEntry } from "../api";
+import { isMobile } from "../api/base";
+import ConfigForm from "../components/ConfigForm.vue";
+import ConfigRawEditor from "../components/ConfigRawEditor.vue";
+
+const router = useRouter();
 
 const entries = ref<ConfigEntry[]>([]);
 const rawFiles = ref<{ file: string; size: number; mtime: number }[]>([]);
-/** 激活项目的配置布局：dir = src/config/*.ts；single = src/config.ts（Mizuki v8.x） */
-const configLayout = ref<"dir" | "single" | null>("dir");
+const loading = ref(false);
 const activeKey = ref("");
-const mode = ref<"none" | "form" | "raw">("none");
-const currentEntry = ref<ConfigEntry | null>(null);
-const formValues = ref<(FieldSpec & { value: unknown })[]>([]);
-const formLoading = ref(false);
-const rawFile = ref<{ file: string; content: string } | null>(null);
-const saving = ref(false);
-
-const jsExtensions = [javascript({ typescript: true })];
+const activeKind = ref<"none" | "form" | "raw">("none");
+const activeName = ref("");
 
 onMounted(async () => {
+	loading.value = true;
 	try {
 		const [entryRes, rawRes] = await Promise.all([api.configs.entries(), api.configs.rawList()]);
-		configLayout.value = (entryRes.configLayout as "dir" | "single" | null) ?? "dir";
 		entries.value = entryRes.entries;
 		rawFiles.value = rawRes.files;
-		if (entries.value.length) onSelect(`form:${entries.value[0].file}`);
+		if (!isMobile && entries.value.length) onSelect(`form:${entries.value[0].file}`);
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		loading.value = false;
 	}
 });
 
-const rawFileLabel = computed(() => {
-	if (!rawFile.value) return "";
-	const f = rawFile.value.file;
-	if (f.startsWith("data/")) return `src/${f}`;
-	if (configLayout.value === "single") return `src/${f}`;
-	return `src/config/${f}`;
-});
-
-async function onSelect(key: string) {
+function onSelect(key: string) {
 	activeKey.value = key;
 	const [kind, name] = key.split(":");
-	if (kind === "form") {
-		mode.value = "form";
-		await loadForm(name);
-	} else if (kind === "raw") {
-		mode.value = "raw";
-		formLoading.value = true;
-		try {
-			rawFile.value = await api.configs.rawGet(name);
-		} catch (e) {
-			ElMessage.error(e instanceof Error ? e.message : String(e));
-		} finally {
-			formLoading.value = false;
-		}
-	}
-}
-
-async function loadForm(file: string) {
-	formLoading.value = true;
-	try {
-		const res = await api.configs.get(file);
-		currentEntry.value = entries.value.find((e) => e.file === file) ?? null;
-		formValues.value = res.fields.map((f) => ({ ...f }));
-	} catch (e) {
-		ElMessage.error(e instanceof Error ? e.message : String(e));
-	} finally {
-		formLoading.value = false;
-	}
-}
-
-function addRow(f: FieldSpec & { value: unknown }) {
-	const row: Record<string, unknown> = {};
-	for (const itemF of f.itemFields ?? []) {
-		if (itemF.type === "boolean") row[itemF.key] = false;
-		else if (itemF.type === "number") row[itemF.key] = 0;
-		else if (itemF.type === "stringArray") row[itemF.key] = [];
-		else row[itemF.key] = "";
-	}
-	(f.value as Record<string, unknown>[]).push(row);
-}
-
-async function saveForm() {
-	if (!currentEntry.value) return;
-	saving.value = true;
-	try {
-		await api.configs.saveFields(
-			currentEntry.value.file,
-			formValues.value
-				.filter((f) => !f.readError)
-				.map((f) => ({ path: f.path, value: f.value }))
-		);
-		ElMessage.success("已保存，建议重启博客 dev server 使配置生效");
-		await loadForm(currentEntry.value.file);
-	} catch (e) {
-		ElMessage.error(e instanceof Error ? e.message : String(e));
-	} finally {
-		saving.value = false;
-	}
-}
-
-async function saveRaw() {
-	if (!rawFile.value) return;
-	saving.value = true;
-	try {
-		await api.configs.rawSave(rawFile.value.file, rawFile.value.content);
-		ElMessage.success("已保存");
-	} catch (e) {
-		ElMessage.error(e instanceof Error ? e.message : String(e));
-	} finally {
-		saving.value = false;
-	}
+	activeKind.value = kind as "form" | "raw";
+	activeName.value = name;
 }
 </script>
 
 <style scoped>
+.hub-title {
+	font-weight: 600;
+	margin: 4px 0 10px;
+}
+
+.hub-title:not(:first-child) {
+	margin-top: 18px;
+}
+
+.hub-item {
+	cursor: pointer;
+	margin-bottom: 10px;
+}
+
+.hub-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.hub-name {
+	font-weight: 600;
+	font-size: 15px;
+}
+
+.hub-desc {
+	color: #909399;
+	font-size: 12px;
+	margin-top: 4px;
+}
+
+.hub-arrow {
+	color: #c0c4cc;
+	flex-shrink: 0;
+}
+
 .configs-layout {
 	display: flex;
 	gap: 16px;
@@ -243,46 +166,5 @@ async function saveRaw() {
 .main-panel {
 	flex: 1;
 	min-width: 0;
-}
-
-.desc {
-	margin-left: 12px;
-	color: #909399;
-	font-size: 12px;
-}
-
-.card-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-
-.list-editor {
-	width: 100%;
-}
-
-.list-row {
-	display: flex;
-	gap: 8px;
-	margin-bottom: 6px;
-}
-
-.tip {
-	color: #909399;
-	font-size: 12px;
-	line-height: 1.5;
-	margin-top: 4px;
-	width: 100%;
-}
-
-.code-editor {
-	height: calc(100vh - 220px);
-	border: 1px solid #e4e7ed;
-	border-radius: 4px;
-	overflow: hidden;
-}
-
-:deep(.cm-editor) {
-	height: 100%;
 }
 </style>

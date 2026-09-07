@@ -2,7 +2,7 @@
 	<div class="wizard-wrap">
 		<el-card shadow="never" class="wizard-card">
 			<div class="wizard-head">
-				<span class="brand"><img :src="'/api/app/icon'" class="brand-icon" alt="" /> FireFly管理后台 · 初始设置</span>
+				<span class="brand"><img :src="apiUrl('/api/app/icon')" class="brand-icon" alt="" /> FireFly管理后台 · 初始设置</span>
 				<span class="sub">首次使用请完成以下 {{ steps.length }} 步（可随时在「应用设置」重新运行）</span>
 			</div>
 			<el-steps :active="step" align-center finish-status="success" class="steps">
@@ -155,6 +155,7 @@
 import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { api } from "../api";
+import { apiUrl } from "../api/base";
 import { applyColorMode } from "../theme";
 import { loadProjects, refreshTheme } from "../stores/project";
 

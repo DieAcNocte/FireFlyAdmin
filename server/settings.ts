@@ -45,6 +45,10 @@ export interface AppPreferences {
 	colorMode: "light" | "dark" | "system";
 	/** 博客模式：auto 按项目文件自动识别 | firefly / mizuki 手动指定（覆盖自动识别） */
 	blogMode: "auto" | "firefly" | "mizuki";
+	/** 允许局域网设备（手机/平板 App 或浏览器）访问管理后台（重启服务后生效） */
+	lanAccess: boolean;
+	/** 局域网访问令牌：非空时，非本机来源的 API 请求需携带（Authorization: Bearer 或 ?token=） */
+	accessToken: string;
 }
 
 export interface Settings {
@@ -61,6 +65,8 @@ const DEFAULT_PREFERENCES = (): AppPreferences => ({
 	port: 5175,
 	colorMode: "light",
 	blogMode: "auto",
+	lanAccess: false,
+	accessToken: "",
 });
 
 const DEFAULT_SETTINGS = (): Settings => {
@@ -141,6 +147,8 @@ export function savePreferences(input: Partial<AppPreferences>): AppPreferences 
 				: input.blogMode === "auto"
 					? "auto"
 					: s.preferences.blogMode,
+		lanAccess: input.lanAccess ?? s.preferences.lanAccess,
+		accessToken: typeof input.accessToken === "string" ? input.accessToken.trim() : s.preferences.accessToken,
 	};
 	s.preferences = next;
 	saveSettings(s);
