@@ -4,6 +4,7 @@
 			<el-button @click="router.push('/posts')">← 返回列表</el-button>
 			<span class="title-label">{{ isNew ? "新建文章" : `编辑：${form.title || file}` }}</span>
 			<div class="spacer" />
+			<span v-if="draftSavedAt" class="draft-hint">草稿已缓存 {{ formatDraftTime(draftSavedAt) }}</span>
 			<el-button @click="pickImages">插入图片</el-button>
 			<el-button type="primary" :loading="saving" @click="save">保存</el-button>
 		</div>
@@ -116,11 +117,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { ElMessage } from "element-plus";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { api, uploadImages } from "../api";
 import MarkdownEditor from "../components/MarkdownEditor.vue";
+import { projectStore } from "../stores/project";
+import { clearDraft, debounce, draftHasContent, draftKey, formatDraftTime, readDraft, writeDraft, type DraftData } from "../lib/drafts";
 
 const route = useRoute();
 const router = useRouter();
@@ -152,6 +155,68 @@ const form = ref({
 const body = ref("");
 const tagOptions = ref<string[]>([]);
 
+// ---- 草稿自动缓存：打字随手存，返回/关闭窗口不丢，随时回来恢复 ----
+const draftSavedAt = ref(0);
+/** 初始化与恢复决策完成前禁止写入，防止磁盘内容刚加载就把已有草稿覆盖掉 */
+const hydrated = ref(false);
+const key = computed(() => draftKey("post", `${projectStore.activeProjectId || "default"}:${file.value || "new"}`));
+
+function flushDraft() {
+	if (!hydrated.value) return;
+	if (!form.value.title.trim() && !body.value.trim()) return;
+	const d: DraftData = { form: { ...form.value }, body: body.value, savedAt: Date.now(), file: file.value || undefined };
+	if (writeDraft(key.value, d)) draftSavedAt.value = d.savedAt;
+}
+const debouncedFlush = debounce(flushDraft, 1000);
+watch([form, body], () => debouncedFlush(), { deep: true });
+
+function applyDraft(d: DraftData) {
+	const f = (d.form ?? {}) as Record<string, unknown>;
+	for (const k of Object.keys(form.value)) {
+		if (k in f) (form.value as Record<string, unknown>)[k] = f[k];
+	}
+	body.value = String(d.body ?? "");
+	draftSavedAt.value = d.savedAt;
+}
+
+async function restoreDraft() {
+	const d = readDraft(key.value);
+	if (d && draftHasContent(d)) {
+		draftSavedAt.value = d.savedAt;
+		const changed = isNew.value || d.body !== body.value || JSON.stringify(d.form) !== JSON.stringify(form.value);
+		if (changed) {
+			if (isNew.value) {
+				// 新建文章：内容无处可丢，直接恢复
+				applyDraft(d);
+				ElMessage.info(`已恢复上次未完成的草稿（${formatDraftTime(d.savedAt)} 保存）`);
+			} else {
+				try {
+					await ElMessageBox.confirm(
+						`检测到 ${formatDraftTime(d.savedAt)} 保存的未完成草稿，与磁盘上的内容不同，是否恢复？`,
+						"草稿恢复",
+						{ confirmButtonText: "恢复草稿", cancelButtonText: "丢弃草稿", distinguishCancelAndClose: true, type: "info" }
+					);
+					applyDraft(d);
+				} catch (action) {
+					// cancel = 丢弃草稿；右上角关闭 = 暂不处理，草稿保留、下次进入再问
+					if (action === "cancel") clearDraft(key.value);
+				}
+			}
+		}
+	}
+	hydrated.value = true;
+}
+
+const onBeforeUnload = () => flushDraft();
+onMounted(() => window.addEventListener("beforeunload", onBeforeUnload));
+onBeforeUnmount(() => {
+	window.removeEventListener("beforeunload", onBeforeUnload);
+	flushDraft();
+});
+onBeforeRouteLeave(() => {
+	flushDraft();
+});
+
 onMounted(async () => {
 	// 拉取已有标签作为可选项
 	try {
@@ -163,6 +228,7 @@ onMounted(async () => {
 		/* ignore */
 	}
 	if (!isNew.value) await loadPost();
+	await restoreDraft();
 });
 
 async function loadPost() {
@@ -268,6 +334,9 @@ async function save() {
 			resultFile = (await api.posts.update(file.value, payload)).file;
 			ElMessage.success("已保存");
 		}
+		// 正式保存成功：清除草稿缓存（此时 key 尚未随 router.replace 变化，新建时正好清掉 :new 键）
+		clearDraft(key.value);
+		draftSavedAt.value = 0;
 		if (route.query.file !== resultFile) {
 			router.replace({ path: "/posts/edit", query: { file: resultFile } });
 		}
@@ -283,5 +352,10 @@ async function save() {
 .title-label {
 	color: #303133;
 	font-weight: 600;
+}
+.draft-hint {
+	font-size: 12px;
+	color: #909399;
+	margin-right: 10px;
 }
 </style>

@@ -143,7 +143,7 @@
 				<el-button v-if="step < 4" type="primary" :disabled="!canNext" :loading="advancing" @click="next">
 					下一步
 				</el-button>
-				<el-button v-else type="success" :loading="finishing" :disabled="!!form.remoteUrl && !syncDone" @click="finish">
+				<el-button v-else type="success" :loading="finishing" :disabled="!!form.remoteUrl && !syncOk" @click="finish">
 					完成，进入管理后台
 				</el-button>
 			</div>
