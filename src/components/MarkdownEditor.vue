@@ -1,13 +1,13 @@
 <template>
 	<div class="md-editor">
-		<div class="md-editor-toolbar">
-			<el-radio-group v-model="mode" size="small">
-				<el-radio-button value="edit">编辑</el-radio-button>
-				<el-radio-button value="split">分屏</el-radio-button>
-				<el-radio-button value="preview">预览</el-radio-button>
-			</el-radio-group>
-			<span class="hint">支持 Markdown 语法</span>
-		</div>
+			<div class="md-editor-toolbar">
+				<el-radio-group v-model="mode" size="small">
+					<el-radio-button value="edit">编辑</el-radio-button>
+					<el-radio-button v-if="!isMobileScreen" value="split">分屏</el-radio-button>
+					<el-radio-button value="preview">预览</el-radio-button>
+				</el-radio-group>
+				<span class="hint">支持 Markdown 语法</span>
+			</div>
 		<div class="md-editor-body" :class="mode">
 			<div v-if="mode !== 'preview'" class="pane editor-pane">
 				<Codemirror
@@ -32,7 +32,9 @@ import markdownit from "markdown-it";
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
 
-const mode = ref<"edit" | "split" | "preview">("split");
+/** 手机窄屏：分屏无意义，默认纯编辑模式 */
+const isMobileScreen = window.matchMedia("(max-width: 768px)").matches;
+const mode = ref<"edit" | "split" | "preview">(isMobileScreen ? "edit" : "split");
 const cmRef = ref();
 
 const extensions = [markdown()];

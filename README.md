@@ -93,7 +93,7 @@ npx tsx scripts/test-e2e.ts
 
 ```
 ├── server/               # Hono 后端
-│   ├── index.ts          # 入口：API 路由 + 生产模式托管 dist/
+│   ├── index.ts          # 入口：API 路由 + 局域网监听/令牌鉴权 + 生产模式托管 dist/
 │   ├── settings.ts       # 多项目持久化（data/settings.json）
 │   ├── paths.ts          # 项目目录解析与路径安全
 │   ├── config/           # AST 引擎（ast.ts）+ 注册表（registry.ts）+ 路由
@@ -101,14 +101,62 @@ npx tsx scripts/test-e2e.ts
 │   ├── media/            # 图片上传与管理
 │   ├── git/              # git status / commit / push
 │   └── blog/             # 博客 dev server 进程管理
-├── src/                  # Vue 3 + Element Plus 前端
+├── src/                  # Vue 3 + Element Plus 前端（响应式：桌面 + 移动端布局）
+├── android/              # Capacitor Android 工程（pnpm build:mobile 同步）
+├── capacitor.config.ts   # Capacitor 配置（App 壳）
 ├── scripts/              # 测试脚本（AST 往返 / E2E）
 └── data/                 # 运行时数据（gitignore）：settings.json
 ```
 
+## 移动端访问（手机 / 平板）
+
+管理后台支持两种移动端使用方式，共用电脑端同一个 Hono 服务：
+
+**前提**：电脑端「应用设置 → 移动端 / 局域网访问」开启「允许局域网访问」并保存后重启服务（或重启 FireflyAdmin.exe），界面会显示局域网访问地址（如 `http://192.168.1.5:5175`），手机与电脑需在同一网络（或通过 Tailscale 等组网互通）。
+
+### 方式一：手机浏览器（零安装）
+
+手机浏览器直接打开局域网访问地址即可，界面自动切换为移动端布局（抽屉导航、紧凑表单）。若电脑端设置了「访问令牌」，首次打开会提示填写。
+
+### 方式二：Capacitor 原生 App（Android）
+
+前端 UI 打包进 App，支持两种连接方式（首次启动 App 时选择，之后可在「连接设置」中切换）：
+
+**电脑端模式**：API 请求指向电脑端服务，功能最完整。填入电脑显示的局域网地址与令牌（若设置）即可，使用时电脑需开机。
+
+**GitHub 直连模式（独立使用，无需电脑）**：App 直接通过 GitHub API 读写博客仓库，填入 `owner/repo`、分支与 GitHub PAT（需 repo 写权限）即可。每次保存/删除 = 一次 git commit，成功或失败都会明确提示。
+
+直连模式能力范围：
+
+- ✅ 文章管理：增删改查、frontmatter 表单、中文转拼音 slug、文章配图上传（提交到 `src/content/posts/images/`）
+- ✅ 动态管理（FireFly 的 markdown 形态）
+- ✅ 页面管理（spec 单页源码编辑）
+- ❌ 相册 / 主页图片 / 站点配置 / 仪表盘 / 预览：需电脑端（App 内自动隐藏）
+- ❌ Mizuki 日记（`src/data/diary.ts` 结构化文件）：需电脑端
+
+> 直连模式修改直接提交到 GitHub 远端仓库；电脑端本地克隆需 `git pull` 后才与远端同步（电脑端「初始设置向导」或项目管理中的同步功能均可）。
+> iOS 构建需要 macOS + Xcode（`npx cap add ios`），本仓库当前只包含 Android 平台。
+
+```bash
+# 构建前端并同步到 Android 工程
+pnpm build:mobile
+
+# 用 Android Studio 打开并构建/安装（需 JDK 17 + Android SDK）
+pnpm open:android
+# Android Studio 中：Build → Build APK(s)，或直接 Run 到连接的设备
+```
+
+命令行构建 APK（不打开 IDE）：
+
+```bash
+cd android && ./gradlew assembleDebug
+# 产物：android/app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## 安全说明
 
-- 服务只绑定 `127.0.0.1`，不要暴露到公网；
+- 服务默认只绑定 `127.0.0.1`；开启「允许局域网访问」后监听所有网卡，**强烈建议同时设置访问令牌**（非本机来源的 API 请求需携带）；
+- 不要将端口映射到公网；如需外网访问，请使用 Tailscale 等组网方案并保持令牌开启；
 - `data/` 已被 gitignore，项目路径与 Token 不会进入版本库；
 - 删除操作（文章/动态/图片/相册）只删文件，已提交过的内容可通过博客仓库的 git 历史找回。
 

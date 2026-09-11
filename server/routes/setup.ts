@@ -19,6 +19,7 @@ import {
 	type ProjectProfile,
 } from "../settings.js";
 import { generateAllDemoContent } from "../setup/demo.js";
+import { activeCapabilities } from "../theme.js";
 
 const SSH_KEY_NAME = "firefly_admin_ed25519";
 
@@ -79,8 +80,11 @@ export const setupRoutes = new Hono()
 		setSetupCompleted(false);
 		return c.json({ ok: true });
 	})
-	// 生成默认演示内容（仅作用于当前激活项目，调用方须自行确认）
+	// 生成默认演示内容（仅作用于当前激活项目，调用方须自行确认；演示内容为 FireFly 约定，其他主题不适用）
 	.post("/demo", (c) => {
+		if (activeCapabilities().demoReset === false) {
+			return c.json({ error: "演示内容按 FireFly 文件约定生成，当前主题不支持；请直接编辑博客内容" }, 400);
+		}
 		const r = generateAllDemoContent();
 		return c.json({ ok: true, ...r });
 	})
@@ -133,7 +137,8 @@ export const setupRoutes = new Hono()
 				return c.json({ ok: true, action: "clone", message: `已克隆 ${branch} 分支到本地` });
 			}
 			const status = await gitStatusSafe(project.localPath, env);
-			if (!status) return c.json({ error: "本地 git 状态读取失败" }, 500);
+			// status 为空字符串表示工作区干净，只有 null（git 调用失败）才算读取失败
+			if (status === null) return c.json({ error: "本地 git 状态读取失败" }, 500);
 			if (status.trim().length > 0) {
 				return c.json({ error: "本地有未提交的修改，请先提交或暂存（stash）后再同步，以免覆盖本地工作。" }, 400);
 			}
@@ -142,7 +147,7 @@ export const setupRoutes = new Hono()
 			return c.json({ ok: true, action: "pull", message: "已拉取远程最新内容" });
 		} catch (e: any) {
 			const stderr = String(e.stderr || e.message || "");
-			if (/not something we can merge|divergent/i.test(stderr)) {
+			if (/not something we can merge|divergent|fast-forward/i.test(stderr)) {
 				return c.json({ error: "本地与远程历史不一致，无法快进合并。请确认远程分支内容后再试。" }, 400);
 			}
 			return c.json({ error: "同步失败：" + stderr.split("\n").filter(Boolean).slice(-3).join(" ") }, 400);

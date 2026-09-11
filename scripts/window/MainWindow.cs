@@ -9,6 +9,8 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -30,6 +32,19 @@ namespace FireflyAdminWindow
         public string colorMode = "light";
     }
 
+    public class HealthInfo
+    {
+        public bool ok;
+        public string id;
+    }
+
+    public class RuntimeInfo
+    {
+        public int port;
+        public int pid;
+        public string id;
+    }
+
     public class MainForm : Form
     {
         readonly WebView2 web = new WebView2();
@@ -39,6 +54,7 @@ namespace FireflyAdminWindow
         bool serverOwned;
         string url;
         string baseDir;
+        string instanceId;
         PrefsInfo prefs = new PrefsInfo();
         bool closing;
         int titleLeft = 14;
@@ -50,7 +66,8 @@ namespace FireflyAdminWindow
 
         public MainForm()
         {
-            baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+            instanceId = InstanceId(baseDir);
             prefs = ReadPrefs();
             url = "http://127.0.0.1:" + prefs.port;
 
@@ -191,7 +208,19 @@ namespace FireflyAdminWindow
 
         void EnsureServerRunning()
         {
+            // 只认「本目录实例」：health 返回的实例 id 必须与 EXE 所在目录一致，
+            // 避免默认端口被开发模式服务或其他目录的实例占用时误连、读到别人的配置
             if (PingServer()) return;
+            int rt = ReadRuntimePort();
+            if (rt > 0)
+            {
+                string candidate = "http://127.0.0.1:" + rt;
+                if (HealthMatches(candidate))
+                {
+                    url = candidate;
+                    return;
+                }
+            }
             var exe = Path.Combine(baseDir, "FireflyAdmin.exe");
             if (!File.Exists(exe)) return;
             var psi = new ProcessStartInfo();
@@ -209,23 +238,71 @@ namespace FireflyAdminWindow
             for (int i = 0; i < 60; i++)
             {
                 if (PingServer()) return;
+                // 引擎可能因默认端口被其他程序占用而自动改换了端口（见 data/server.json）
+                int p = ReadRuntimePort();
+                if (p > 0)
+                {
+                    string candidate = "http://127.0.0.1:" + p;
+                    if (HealthMatches(candidate))
+                    {
+                        url = candidate;
+                        return;
+                    }
+                }
                 System.Threading.Thread.Sleep(200);
             }
         }
 
         bool PingServer()
         {
+            return HealthMatches(url);
+        }
+
+        /// 访问 addr 的 /api/health，且实例 id 必须与本目录一致才算命中
+        bool HealthMatches(string addr)
+        {
             try
             {
-                var rq = (HttpWebRequest)WebRequest.Create(url + "/api/health");
+                var rq = (HttpWebRequest)WebRequest.Create(addr + "/api/health");
                 rq.Timeout = 500;
                 rq.ReadWriteTimeout = 500;
-                using (var rs = rq.GetResponse()) { }
-                return true;
+                using (var rs = rq.GetResponse())
+                using (var stream = rs.GetResponseStream())
+                using (var reader = new StreamReader(stream))
+                {
+                    var info = new JavaScriptSerializer().Deserialize<HealthInfo>(reader.ReadToEnd());
+                    return info != null && info.id == instanceId;
+                }
             }
             catch
             {
                 return false;
+            }
+        }
+
+        /// 引擎实际监听端口（默认端口被占用自动改换时写入 data/server.json）
+        int ReadRuntimePort()
+        {
+            try
+            {
+                string json = File.ReadAllText(Path.Combine(baseDir, "data", "server.json"));
+                var rt = new JavaScriptSerializer().Deserialize<RuntimeInfo>(json);
+                if (rt != null && rt.port > 0 && rt.id == instanceId) return rt.port;
+            }
+            catch { }
+            return 0;
+        }
+
+        /// 实例标识：EXE 所在目录的 SHA1（与服务端 /api/health 返回的 id 对应）
+        string InstanceId(string dir)
+        {
+            string clean = Path.GetFullPath(dir).TrimEnd('\\', '/').ToLowerInvariant();
+            using (var sha = new SHA1Managed())
+            {
+                byte[] bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(clean));
+                var sb = new StringBuilder(bytes.Length * 2);
+                foreach (byte b in bytes) sb.Append(b.ToString("x2"));
+                return sb.ToString();
             }
         }
 

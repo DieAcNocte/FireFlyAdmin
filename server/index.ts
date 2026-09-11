@@ -1,7 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { ROOT_DIR, getPreferences, savePreferences } from "./settings.js";
 import { projectRoutes } from "./routes/projects.js";
@@ -12,8 +15,18 @@ import { configRoutes } from "./config/routes.js";
 import { gitRoutes } from "./routes/gitRoutes.js";
 import { blogRoutes } from "./routes/blogRoutes.js";
 import { setupRoutes } from "./routes/setup.js";
+import { activeCapabilities } from "./theme.js";
 
 const SEA_BUILD = typeof __SEA_BUILD !== "undefined" && __SEA_BUILD === "true";
+
+/**
+ * 实例标识：数据目录路径（EXE 所在目录 / 脚本模式工作目录）的 SHA1。
+ * 窗口壳与引擎据此判断「某端口上响应的服务是否属于本目录实例」，
+ * 避免发行版 EXE 误连开发模式或其他目录实例的服务、读到别人的配置。
+ */
+const INSTANCE_ID = createHash("sha1")
+	.update(path.resolve(ROOT_DIR).toLowerCase().replace(/[\\/]+$/, ""))
+	.digest("hex");
 
 /** SEA 模式下前端资源内嵌在 EXE 中，通过 node:sea 读取（main 内初始化） */
 let seaApi: { getRawAsset(key: string): ArrayBuffer } | null = null;
@@ -34,6 +47,27 @@ app.onError((err, c) => {
 	return c.json({ error: err.message || "服务器内部错误" }, 500);
 });
 
+// CORS：允许局域网设备（Capacitor App / 手机浏览器）跨域访问 API
+app.use("/api/*", cors());
+
+/** 判断请求来源是否为本机回环地址（桌面端 WebView/本机浏览器免鉴权） */
+function isLoopbackRequest(c: { env: unknown }): boolean {
+	const incoming = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming;
+	const ip = incoming?.socket?.remoteAddress ?? "";
+	return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip === "localhost";
+}
+
+// 访问令牌：设置了 accessToken 时，非本机来源的请求必须携带
+// （Authorization: Bearer <token> 请求头，或 ?token= 查询参数——后者供 <img> 等无法设请求头的资源使用）
+app.use("/api/*", async (c, next) => {
+	const token = getPreferences().accessToken;
+	if (!token) return next();
+	if (isLoopbackRequest(c)) return next();
+	const auth = c.req.header("authorization") ?? "";
+	if (auth === `Bearer ${token}` || c.req.query("token") === token) return next();
+	return c.json({ error: "未授权：请在连接设置中填写访问令牌" }, 401);
+});
+
 app.route("/api/projects", projectRoutes);
 app.route("/api/configs", configRoutes);
 app.route("/api/gallery", galleryRoutes);
@@ -43,7 +77,9 @@ app.route("/api/setup", setupRoutes);
 app.route("/api", contentRoutes);
 app.route("/api", mediaRoutes);
 
-app.get("/api/health", (c) => c.json({ ok: true, time: Date.now() }));
+app.get("/api/health", (c) => c.json({ ok: true, time: Date.now(), id: INSTANCE_ID }));
+// 激活项目的主题与能力声明（前端据此渲染对应页面形态）
+app.get("/api/theme", (c) => c.json(activeCapabilities()));
 
 // ── 应用设置 / 运行时控制 ──
 app.get("/api/app/preferences", (c) => c.json(getPreferences()));
@@ -53,6 +89,9 @@ app.put("/api/app/preferences", async (c) => {
 		closeAction?: "exit" | "background";
 		port?: number;
 		colorMode?: "light" | "dark" | "system";
+		blogMode?: "auto" | "firefly" | "mizuki";
+		lanAccess?: boolean;
+		accessToken?: string;
 	};
 	if (body.port !== undefined) {
 		const port = Number(body.port);
@@ -62,12 +101,25 @@ app.put("/api/app/preferences", async (c) => {
 	}
 	return c.json({ ok: true, preferences: savePreferences(body) });
 });
+/** 收集本机局域网 IPv4 地址，供手机端填写的访问地址展示 */
+function lanAddresses(port: number): string[] {
+	const out: string[] = [];
+	for (const list of Object.values(os.networkInterfaces())) {
+		for (const ni of list ?? []) {
+			if (ni.family === "IPv4" && !ni.internal) out.push(`http://${ni.address}:${port}`);
+		}
+	}
+	return out;
+}
+
 app.get("/api/app/runtime", (c) =>
 	c.json({
 		sea: SEA_BUILD,
 		pid: process.pid,
 		port: PORT,
 		closeAction: getPreferences().closeAction,
+		lanAccess: getPreferences().lanAccess,
+		lanAddresses: getPreferences().lanAccess ? lanAddresses(PORT) : [],
 	})
 );
 app.post("/api/app/stop", (c) => {
@@ -132,6 +184,67 @@ app.get("*", (c) => {
 
 let PORT = 5175;
 
+const RUNTIME_FILE = path.join(ROOT_DIR, "data", "server.json");
+
+/** 记录本实例实际监听端口（默认端口被占用自动改换时，窗口壳据此找到真实地址） */
+function writeRuntimePort(port: number): void {
+	try {
+		fs.mkdirSync(path.join(ROOT_DIR, "data"), { recursive: true });
+		fs.writeFileSync(RUNTIME_FILE, JSON.stringify({ port, pid: process.pid, id: INSTANCE_ID }));
+	} catch {
+		/* ignore */
+	}
+}
+
+/** 判断某端口上响应的服务是否属于本目录实例（数据目录相同才视为同一实例） */
+async function isOwnInstance(port: number): Promise<boolean> {
+	try {
+		const res = await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(800) });
+		if (!res.ok) return false;
+		const data = (await res.json()) as { id?: string };
+		return data.id === INSTANCE_ID;
+	} catch {
+		return false;
+	}
+}
+
+function waitEnter(): void {
+	console.error("按回车键关闭本窗口…");
+	process.stdin.resume();
+	process.stdin.once("data", () => process.exit(1));
+}
+
+/** 在指定端口监听；成功 resolve 实际端口，端口被占用（EADDRINUSE）resolve -1 */
+function listenOn(port: number, hostname: string): Promise<number> {
+	return new Promise((resolve) => {
+		const server = serve({ fetch: app.fetch, hostname, port }, (info) => {
+			PORT = info.port;
+			writeRuntimePort(info.port);
+			console.log(`[firefly-admin] 管理后台已启动: http://127.0.0.1:${info.port}`);
+			if (getPreferences().lanAccess) {
+				const addrs = lanAddresses(info.port);
+				if (addrs.length) console.log(`[firefly-admin] 局域网访问: ${addrs.join(", ")}`);
+				else console.log("[firefly-admin] 局域网访问已开启，但未检测到局域网网卡地址");
+			}
+			// 双击 EXE 启动时自动打开浏览器
+			if (SEA_BUILD && process.env.NO_OPEN !== "1") {
+				openBrowser(`http://127.0.0.1:${info.port}`);
+			}
+			resolve(info.port);
+		});
+		server.on("error", (err: NodeJS.ErrnoException) => {
+			if (err.code === "EADDRINUSE") {
+				resolve(-1);
+				return;
+			}
+			console.error(`[firefly-admin] 启动失败: ${err.message}`);
+			if (SEA_BUILD) waitEnter();
+			else process.exit(1);
+			resolve(-1);
+		});
+	});
+}
+
 async function main() {
 	if (SEA_BUILD) {
 		try {
@@ -156,31 +269,39 @@ async function main() {
 			process.exit(0);
 		});
 	}
-	PORT = Number(process.env.PORT || getPreferences().port || 5175);
-	const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: PORT }, (info) => {
-		console.log(`[firefly-admin] 管理后台已启动: http://127.0.0.1:${info.port}`);
-		// 双击 EXE 启动时自动打开浏览器
-		if (SEA_BUILD && process.env.NO_OPEN !== "1") {
-			openBrowser(`http://127.0.0.1:${info.port}`);
-		}
-	});
-	// 端口被占用等启动失败：给出明确提示（SEA 模式保持窗口可读，避免双击后一闪而过）
-	server.on("error", (err: NodeJS.ErrnoException) => {
-		console.error(`[firefly-admin] 启动失败: ${err.message}`);
-		if (err.code === "EADDRINUSE") {
-			console.error(`端口 ${PORT} 已被占用。`);
-			console.error("• 如果之前已打开过管理后台，说明服务正在运行，直接访问上面的地址即可；现在帮您打开。");
-			console.error("• 否则请关闭占用该端口的程序，或在「应用设置 → 默认端口」修改端口后重新打开。");
-			if (process.env.NO_OPEN !== "1") openBrowser(`http://127.0.0.1:${PORT}`);
+	// 局域网访问开关：开启后监听所有网卡（手机/平板可访问），否则仅本机
+	const hostname = getPreferences().lanAccess ? "0.0.0.0" : "127.0.0.1";
+	const preferred = Number(process.env.PORT || getPreferences().port || 5175);
+	let port = await listenOn(preferred, hostname);
+	if (port === -1) {
+		if (await isOwnInstance(preferred)) {
+			// 占用者就是本目录实例（如转入后台的引擎）：服务已在运行，直接打开即可
+			console.log(`[firefly-admin] 管理后台已在运行: http://127.0.0.1:${preferred}`);
+			if (process.env.NO_OPEN !== "1") openBrowser(`http://127.0.0.1:${preferred}`);
+			if (SEA_BUILD) waitEnter();
+			else process.exit(0);
+			return;
 		}
 		if (SEA_BUILD) {
-			console.error("按回车键关闭本窗口…");
-			process.stdin.resume();
-			process.stdin.once("data", () => process.exit(1));
-		} else {
-			process.exit(1);
+			// 占用者是其他实例（其他目录的发行版 / 开发模式服务等）：自动改用空闲端口，
+			// 保证本目录 EXE 始终读写自己 data/ 里的数据，而不是连到别人的服务上。
+			// 脚本模式不改换端口（vite dev 代理固定指向 5175）。
+			for (let p = preferred + 1; p <= Math.min(preferred + 20, 65535); p++) {
+				port = await listenOn(p, hostname);
+				if (port !== -1) break;
+			}
 		}
-	});
+		if (port === -1) {
+			console.error(`端口 ${preferred} 已被占用。`);
+			console.error("• 如果之前已打开过管理后台，说明服务正在运行，直接访问上面的地址即可；现在帮您打开。");
+			console.error("• 否则请关闭占用该端口的程序，或在「应用设置 → 默认端口」修改端口后重新打开。");
+			if (process.env.NO_OPEN !== "1") openBrowser(`http://127.0.0.1:${preferred}`);
+			if (SEA_BUILD) waitEnter();
+			else process.exit(1);
+			return;
+		}
+		console.log(`[firefly-admin] 默认端口 ${preferred} 被其他程序占用，已自动改用 ${port}（数据目录：${path.join(ROOT_DIR, "data")}）`);
+	}
 }
 
 function openBrowser(url: string): void {

@@ -1,5 +1,6 @@
 <template>
 	<div v-loading="loading" class="prefs">
+		<template v-if="showServerCards">
 		<el-card shadow="never" class="page-card">
 			<template #header>
 				<div class="card-header">
@@ -7,7 +8,7 @@
 					<el-button type="primary" :loading="saving" @click="save">保存</el-button>
 				</div>
 			</template>
-			<el-form label-width="180px">
+			<el-form :label-position="formLabelPos" label-width="180px">
 				<el-form-item label="上传图片默认转 AVIF">
 					<el-switch v-model="form.uploadConvertAvif" />
 					<FieldTip text="开启后，相册页与主页图片页上传图片时默认勾选「转 AVIF」（体积更小），每次上传前仍可手动取消勾选。" />
@@ -34,6 +35,41 @@
 					</el-radio-group>
 					<FieldTip text="仅对 EXE 生效：「直接退出」= 关闭应用窗口（或控制台窗口）时同时停止服务；「转入后台继续运行」= 关闭窗口后服务在后台继续运行，重新双击 FireflyAdminApp.exe 可秒开，也可在下方「停止服务」结束。立即生效，无需重启。" />
 				</el-form-item>
+
+				<el-form-item label="博客模式">
+					<el-radio-group v-model="form.blogMode">
+						<el-radio value="auto">自动识别</el-radio>
+						<el-radio value="firefly">FireFly 模式</el-radio>
+						<el-radio value="mizuki">Mizuki 模式</el-radio>
+					</el-radio-group>
+					<FieldTip text="决定管理后台按哪套主题约定工作（相册/日记/壁纸/配置表单等）。默认按当前项目的文件特征自动识别；若博客是魔改主题导致识别错误，可手动指定 FireFly 或 Mizuki 模式强制覆盖。切换后对当前激活项目立即生效。" />
+				</el-form-item>
+			</el-form>
+		</el-card>
+
+		<el-card shadow="never" class="page-card">
+			<template #header>
+				<div class="card-header">
+					<span>移动端 / 局域网访问</span>
+					<el-tag v-if="runtime?.lanAccess" type="success" effect="plain" size="small">已开启</el-tag>
+				</div>
+			</template>
+			<el-form :label-position="formLabelPos" label-width="180px">
+				<el-form-item label="允许局域网访问">
+					<el-switch v-model="form.lanAccess" />
+					<FieldTip text="开启后服务监听所有网卡，同一 Wi-Fi 下的手机/平板可通过下方地址访问（手机浏览器直接打开，或 FireFly 手机 App 中填入）。保存后需重启服务（重新打开 FireflyAdmin.exe）生效。" />
+				</el-form-item>
+				<el-form-item v-if="runtime?.lanAddresses?.length" label="局域网访问地址">
+					<div class="lan-addrs">
+						<el-tag v-for="a in runtime.lanAddresses" :key="a" type="info" effect="plain" class="lan-addr">{{ a }}</el-tag>
+					</div>
+					<FieldTip text="在手机端填入此地址（App 连接页或手机浏览器地址栏）。IP 由路由器分配，重启后如变化请以新地址为准；也可在电脑上配置固定 IP。" />
+				</el-form-item>
+				<el-form-item label="访问令牌">
+					<el-input v-model="form.accessToken" placeholder="留空 = 局域网访问不鉴权（不推荐）" style="max-width: 320px" />
+					<el-button style="margin-left: 8px" @click="regenToken">重新生成</el-button>
+					<FieldTip text="局域网中的设备访问 API 时需携带此令牌，本机桌面端不受影响。手机端首次连接时填写一次即可；修改保存后已连接的手机端需在连接设置中同步更新。" />
+				</el-form-item>
 			</el-form>
 		</el-card>
 
@@ -44,7 +80,7 @@
 				</div>
 			</template>
 			<el-button @click="rerunWizard">重新运行初始设置向导</el-button>
-			<FieldTip text="重新打开首次使用的四步向导：界面配色 → 本地文件夹检测 → 远程仓库与密钥 → 同步。不会删除任何项目与配置。" />
+			<FieldTip text="重新打开首次使用的五步向导：界面配色 → 主题框架 → 本地文件夹检测 → 远程仓库与密钥 → 同步。不会删除任何项目与配置。" />
 			<el-button type="warning" plain style="margin-left: 12px" @click="resetDemo">重置为默认演示内容</el-button>
 			<FieldTip text="对当前项目的博客执行：清空文章与动态并写入一篇「测试」文章/一条「测试」动态，相册只留一个普通 + 一个加密演示相册，壁纸只保留 D01/M01。⚠ 会清空当前博客已有内容，请务必确认！" />
 			<div class="warn-tip" style="margin-top: 10px">
@@ -94,33 +130,302 @@
 				title="当前为脚本模式（pnpm dev / pnpm start）。「关闭窗口时」与「停止服务」仅对 FireflyAdmin.exe 启动方式生效。"
 			/>
 		</el-card>
+		</template>
+
+		<el-card shadow="never" class="page-card">
+			<template #header>
+				<div class="card-header">
+					<span>背景外观</span>
+					<el-tag size="small" type="info" effect="plain">电脑端 / 手机端独立设置</el-tag>
+				</div>
+			</template>
+			<div class="warn-tip" style="margin-top: 0; margin-bottom: 4px">
+				为管理后台本身更换背景图片（与「主页图片」页管理的博客端壁纸无关）。电脑端与手机端壁纸各自独立、分别保存：带「当前设备」标签的一端修改后立即生效。壁纸数据保存在各自设备本地、互不同步，如需更换另一台设备上的壁纸，请在那台设备上打开本页面设置。
+			</div>
+			<div v-for="s in bgSections" :key="s.key" class="bg-section">
+				<div class="bg-section-head">
+					<span class="bg-section-title">{{ s.label }}</span>
+					<el-tag v-if="s.key === currentTarget" size="small" type="success" effect="plain">当前设备</el-tag>
+					<el-switch v-model="s.cfg.enabled" @change="persistBg(s.key)" />
+				</div>
+				<template v-if="s.cfg.enabled">
+					<el-alert
+						v-if="!s.cfg.url"
+						type="warning"
+						:closable="false"
+						title="尚未选择背景图片，选择后背景才会显示"
+						style="margin-bottom: 12px"
+					/>
+					<el-form :label-position="formLabelPos" label-width="180px">
+						<el-form-item label="背景图片">
+							<div class="bg-pick">
+								<el-image
+									v-if="s.cfg.url"
+									:src="s.cfg.url"
+									fit="cover"
+									class="bg-thumb"
+									:preview-src-list="[s.cfg.url]"
+									preview-teleported
+								/>
+								<span v-else class="bg-thumb bg-thumb-empty">未选择</span>
+								<div class="bg-pick-actions">
+									<el-button size="small" @click="pickBgFile(s.key)">上传图片</el-button>
+									<el-button size="small" @click="promptBgUrl(s.key)">图片 URL</el-button>
+									<el-button v-if="s.cfg.url" size="small" text type="danger" @click="clearBgImage(s.key)">移除图片</el-button>
+								</div>
+							</div>
+							<FieldTip text="上传的图片仅保存在本机（自动压缩为最长边 1920 的 JPEG，约几百 KB），不会上传到服务器或博客仓库；也可直接填远程图片 URL。" />
+						</el-form-item>
+						<el-form-item label="模糊半径">
+							<el-slider v-model="s.cfg.blur" :min="0" :max="30" style="max-width: 320px" @input="previewBg(s.key)" @change="persistBg(s.key)" />
+							<FieldTip text="背景图片的模糊程度（px），让前景内容更突出。" />
+						</el-form-item>
+						<el-form-item label="遮罩暗度">
+							<el-slider v-model="s.cfg.dim" :min="0" :max="80" style="max-width: 320px" @input="previewBg(s.key)" @change="persistBg(s.key)" />
+							<FieldTip text="叠加在背景上的黑色遮罩不透明度（%），背景过亮影响阅读时调大。" />
+						</el-form-item>
+					</el-form>
+				</template>
+			</div>
+		</el-card>
+
+		<el-card v-if="isNative && isGithubMode()" shadow="never" class="page-card">
+			<template #header>
+				<div class="card-header">
+					<span>本地个性化设置</span>
+					<el-tag size="small" type="info" effect="plain">保存在手机</el-tag>
+				</div>
+			</template>
+			<el-form label-position="top">
+				<el-form-item label="界面配色">
+					<el-radio-group v-model="devColor" @change="onDevColor">
+						<el-radio value="light">浅色</el-radio>
+						<el-radio value="dark">深色</el-radio>
+						<el-radio value="system">跟随系统</el-radio>
+					</el-radio-group>
+					<FieldTip text="App 自身的亮暗配色，保存在手机本地并立即生效，与电脑端设置互不影响。" />
+				</el-form-item>
+				<el-form-item label="博客模式">
+					<el-radio-group v-model="devBlog" @change="onDevBlog">
+						<el-radio value="auto">自动识别</el-radio>
+						<el-radio value="firefly">FireFly 模式</el-radio>
+						<el-radio value="mizuki">Mizuki 模式</el-radio>
+					</el-radio-group>
+					<FieldTip text="默认按仓库文件特征自动识别主题；若识别错误可强制指定，切换后立即重新探测。" />
+				</el-form-item>
+			</el-form>
+			<div class="warn-tip">
+				说明：这些偏好保存在手机本地，与电脑端的应用偏好互不影响。
+			</div>
+		</el-card>
+
+		<el-card v-if="isNative" shadow="never" class="page-card">
+			<template #header>
+				<div class="card-header">
+					<span>连接电脑端</span>
+					<el-tag size="small" type="warning" effect="plain">实验功能</el-tag>
+				</div>
+			</template>
+			<el-form :label-position="formLabelPos" label-width="180px" v-if="!isGithubMode()">
+				<el-form-item label="当前连接方式">
+					<el-tag type="success" effect="plain">电脑端（局域网）</el-tag>
+				</el-form-item>
+				<el-form-item label="切换连接方式">
+					<el-button @click="switchToGithub">切回 GitHub 直连</el-button>
+					<FieldTip text="切回后 App 使用 GitHub 直连模式（无需电脑在线）；电脑端地址与令牌会保留在本机，随时可再切换回来。" />
+				</el-form-item>
+			</el-form>
+			<el-form :label-position="formLabelPos" label-width="180px" v-else>
+				<el-form-item label="当前连接方式">
+					<el-tag type="info" effect="plain">GitHub 直连</el-tag>
+				</el-form-item>
+				<el-form-item label="服务器地址">
+					<el-input v-model="expUrl" placeholder="http://192.168.1.5:5175" style="max-width: 340px" />
+					<FieldTip text="电脑端「应用设置 → 移动端 / 局域网访问」开启后显示的局域网地址。连接后 App 切换为电脑端模式（功能更全，但使用时需电脑在线）。" />
+				</el-form-item>
+				<el-form-item label="访问令牌">
+					<el-input v-model="expToken" show-password placeholder="服务端未设置令牌可留空" style="max-width: 340px" />
+				</el-form-item>
+				<el-form-item label=" " :label-width="isMobile ? '0' : '180px'">
+					<el-button :loading="expTesting" @click="testExpServer">测试连接</el-button>
+					<el-button type="primary" :loading="expSaving" @click="switchToServer">保存并切换为电脑端</el-button>
+				</el-form-item>
+			</el-form>
+			<div class="warn-tip" style="margin-top: 8px">
+				实验说明：电脑端连接目前为实验性支持，日常使用推荐 GitHub 直连。各连接方式的配置分别保存在本机，切换时互不清除。
+			</div>
+		</el-card>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { api, type AppPreferences, type AppRuntime } from "../api";
-import { activeProject } from "../stores/project";
+import { isNative, isGithubMode, isMobile, serverUrl, serverToken, saveServerConfig, switchConnMode, deviceColorMode, deviceBlogMode, saveDeviceColorMode, saveDeviceBlogMode } from "../api/base";
+import { activeProject, refreshTheme } from "../stores/project";
 import FieldTip from "../components/FieldTip.vue";
 import { applyColorMode } from "../theme";
+import { applyBackground, currentBgTarget, fileToBackgroundDataUrl, loadBackground, saveBackground, type BackgroundConfig, type BgTarget } from "../background";
+
+/** 表单标签布局：手机端文字在上（top），电脑端保持右侧标签原样 */
+const formLabelPos = computed(() => (isMobile ? "top" : "right"));
 
 const loading = ref(false);
 const saving = ref(false);
-const form = ref<AppPreferences>({ uploadConvertAvif: true, closeAction: "exit", port: 5175, colorMode: "light" });
+
+/** 电脑端偏好等卡片仅在本机/服务器模式可用；GitHub 直连模式下应用设置只展示实验功能 */
+const showServerCards = computed(() => !isNative || !isGithubMode());
+
+// ── 实验功能：电脑端（局域网）连接 ──
+const expUrl = ref(serverUrl.value);
+const expToken = ref(serverToken.value);
+const expTesting = ref(false);
+const expSaving = ref(false);
+
+async function testExpServer() {
+	expTesting.value = true;
+	try {
+		const base = expUrl.value.trim().replace(/\/+$/, "");
+		if (!base) throw new Error("请先填写服务器地址");
+		const headers: Record<string, string> = {};
+		if (expToken.value.trim()) headers["Authorization"] = `Bearer ${expToken.value.trim()}`;
+		const res = await fetch(`${base}/api/health`, { headers });
+		if (res.status === 401) throw new Error("连接成功，但令牌不正确或未填写");
+		if (!res.ok) throw new Error(`服务器响应异常 (${res.status})`);
+		ElMessage.success("连接成功");
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		expTesting.value = false;
+	}
+}
+
+async function switchToServer() {
+	const base = expUrl.value.trim().replace(/\/+$/, "");
+	if (!base) {
+		ElMessage.warning("请先填写服务器地址");
+		return;
+	}
+	expSaving.value = true;
+	try {
+		await saveServerConfig(base, expToken.value);
+		location.reload();
+	} catch (e) {
+		ElMessage.error(e instanceof Error ? e.message : String(e));
+	} finally {
+		expSaving.value = false;
+	}
+}
+
+async function switchToGithub() {
+	await switchConnMode("github");
+	location.reload();
+}
+
+// ── 本地偏好（直连模式：保存在手机本地）──
+const devColor = ref<"light" | "dark" | "system">(deviceColorMode.value);
+const devBlog = ref<"auto" | "firefly" | "mizuki">(deviceBlogMode.value);
+
+async function onDevColor(mode: string) {
+	const m = mode as "light" | "dark" | "system";
+	applyColorMode(m);
+	await saveDeviceColorMode(m);
+}
+
+async function onDevBlog(mode: string) {
+	await saveDeviceBlogMode(mode as "auto" | "firefly" | "mizuki");
+	await refreshTheme();
+	ElMessage.success("已切换博客模式");
+}
+
+// ── 背景外观（电脑端 / 手机端各自独立，设备本地，当前设备立即生效）──
+const currentTarget = currentBgTarget();
+const bgDesktop = ref<BackgroundConfig>(loadBackground("desktop"));
+const bgMobile = ref<BackgroundConfig>(loadBackground("mobile"));
+const bgSections = computed(() => [
+	{ key: "desktop" as BgTarget, label: "电脑端壁纸", cfg: bgDesktop.value },
+	{ key: "mobile" as BgTarget, label: "手机端壁纸", cfg: bgMobile.value },
+]);
+
+function sectionCfg(target: BgTarget): BackgroundConfig {
+	return target === "desktop" ? bgDesktop.value : bgMobile.value;
+}
+
+function persistBg(target: BgTarget) {
+	try {
+		saveBackground(sectionCfg(target), target);
+	} catch {
+		ElMessage.error("背景设置保存失败（本机存储空间不足，请更换较小的图片）");
+	}
+}
+
+/** 滑块拖动中：仅实时预览当前设备端的背景，不写存储 */
+function previewBg(target: BgTarget) {
+	if (target === currentTarget) applyBackground(sectionCfg(target));
+}
+
+function pickBgFile(target: BgTarget) {
+	const input = document.createElement("input");
+	input.type = "file";
+	input.accept = "image/*";
+	input.onchange = async () => {
+		const file = input.files?.[0];
+		if (!file) return;
+		try {
+			sectionCfg(target).url = await fileToBackgroundDataUrl(file);
+			persistBg(target);
+			ElMessage.success("背景已保存");
+		} catch (e) {
+			ElMessage.error(e instanceof Error ? e.message : String(e));
+		}
+	};
+	input.click();
+}
+
+async function promptBgUrl(target: BgTarget) {
+	try {
+		const { value } = await ElMessageBox.prompt("填写远程图片地址（https:// 开头），留空则清除当前图片", "背景图片 URL", {
+			inputValue: /^https?:\/\//.test(sectionCfg(target).url) ? sectionCfg(target).url : "",
+			inputPattern: /^(https?:\/\/\S+)?$/,
+			inputErrorMessage: "请填写合法的图片 URL",
+		});
+		sectionCfg(target).url = value.trim();
+		persistBg(target);
+	} catch {
+		/* 取消 */
+	}
+}
+
+function clearBgImage(target: BgTarget) {
+	sectionCfg(target).url = "";
+	persistBg(target);
+}
+const form = ref<AppPreferences>({ uploadConvertAvif: true, closeAction: "exit", port: 5175, colorMode: "light", blogMode: "auto", lanAccess: false, accessToken: "" });
 const runtime = ref<AppRuntime | null>(null);
+/** 最近一次持久化的博客模式，用于判断保存时是否发生了切换 */
+const lastSavedMode = ref<"auto" | "firefly" | "mizuki">("auto");
 
 function onColorModeChange(mode: string) {
 	applyColorMode(mode);
 }
 
+/** 生成随机访问令牌（32 位十六进制） */
+function regenToken() {
+	const bytes = new Uint8Array(16);
+	crypto.getRandomValues(bytes);
+	form.value.accessToken = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 onMounted(load);
 
 async function load() {
+	if (isNative && isGithubMode()) return; // GitHub 直连模式：应用偏好等电脑端设置不可用，仅展示实验功能
 	loading.value = true;
 	try {
 		const [p, r] = await Promise.all([api.app.prefs(), api.app.runtime()]);
 		form.value = { ...p };
+		lastSavedMode.value = p.blogMode;
 		runtime.value = r;
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
@@ -130,11 +435,22 @@ async function load() {
 }
 
 async function save() {
+	const modeChanged = runtime.value !== null && form.value.blogMode !== lastSavedMode.value;
 	saving.value = true;
 	try {
 		const res = await api.app.savePrefs({ ...form.value });
 		form.value = { ...res.preferences };
-		ElMessage.success("已保存" + (res.preferences.port !== runtime.value?.port ? "（端口修改将在重启后生效）" : ""));
+		lastSavedMode.value = res.preferences.blogMode;
+		if (modeChanged) {
+			// 博客模式变了：刷新主题能力，并让各页面重新按能力渲染
+			await refreshTheme();
+			window.dispatchEvent(new CustomEvent("project-switched", { detail: activeProject?.value?.id ?? "" }));
+		}
+		ElMessage.success(
+			"已保存" +
+				(res.preferences.port !== runtime.value?.port ? "（端口修改将在重启后生效）" : "") +
+				(modeChanged ? "（博客模式已切换）" : "")
+		);
 	} catch (e) {
 		ElMessage.error(e instanceof Error ? e.message : String(e));
 	} finally {
@@ -229,5 +545,67 @@ async function forceSync() {
 	font-size: 12px;
 	line-height: 1.6;
 	margin-top: 6px;
+}
+
+.lan-addrs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.lan-addr {
+	font-family: Consolas, Monaco, monospace;
+}
+
+.bg-section {
+	padding-top: 4px;
+}
+
+.bg-section + .bg-section {
+	border-top: 1px solid var(--el-border-color-lighter);
+	margin-top: 16px;
+	padding-top: 16px;
+}
+
+.bg-section-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.bg-section-title {
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.bg-pick {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.bg-thumb {
+	width: 120px;
+	height: 68px;
+	border-radius: 6px;
+	border: 1px solid var(--el-border-color);
+	background: var(--el-fill-color-light);
+	flex-shrink: 0;
+}
+
+.bg-thumb-empty {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--el-text-color-secondary);
+	font-size: 12px;
+}
+
+.bg-pick-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	align-items: flex-start;
 }
 </style>
