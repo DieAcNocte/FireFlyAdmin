@@ -68,7 +68,7 @@
 
 		<!-- 新建/编辑相册 -->
 		<el-dialog v-model="dialogVisible" :title="editIndex === null ? '新建相册' : '编辑相册'" width="560px">
-			<el-form label-width="80px">
+			<el-form :label-position="isMobile ? 'top' : 'right'" require-asterisk-position="right" label-width="80px">
 				<el-form-item label="名称" required>
 					<el-input v-model="dialogForm.name" placeholder="如：手机壁纸" @input="suggestId" />
 				</el-form-item>

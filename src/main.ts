@@ -8,10 +8,13 @@ import App from "./App.vue";
 import router from "./router";
 import "./style.css";
 import { initApiBase } from "./api/base";
+import { applyBackground, loadBackground } from "./background";
 
 async function bootstrap() {
 	// 原生壳下先读取服务器地址/令牌，再挂载应用（API 层依赖）
 	await initApiBase();
+	// 挂载前应用已保存的自定义背景，避免闪烁
+	applyBackground(loadBackground());
 	const app = createApp(App);
 	app.use(router);
 	app.use(ElementPlus, { locale: zhCn });

@@ -132,6 +132,63 @@
 		</el-card>
 		</template>
 
+		<el-card shadow="never" class="page-card">
+			<template #header>
+				<div class="card-header">
+					<span>背景外观</span>
+					<el-tag size="small" type="info" effect="plain">电脑端 / 手机端独立设置</el-tag>
+				</div>
+			</template>
+			<div class="warn-tip" style="margin-top: 0; margin-bottom: 4px">
+				为管理后台本身更换背景图片（与「主页图片」页管理的博客端壁纸无关）。电脑端与手机端壁纸各自独立、分别保存：带「当前设备」标签的一端修改后立即生效。壁纸数据保存在各自设备本地、互不同步，如需更换另一台设备上的壁纸，请在那台设备上打开本页面设置。
+			</div>
+			<div v-for="s in bgSections" :key="s.key" class="bg-section">
+				<div class="bg-section-head">
+					<span class="bg-section-title">{{ s.label }}</span>
+					<el-tag v-if="s.key === currentTarget" size="small" type="success" effect="plain">当前设备</el-tag>
+					<el-switch v-model="s.cfg.enabled" @change="persistBg(s.key)" />
+				</div>
+				<template v-if="s.cfg.enabled">
+					<el-alert
+						v-if="!s.cfg.url"
+						type="warning"
+						:closable="false"
+						title="尚未选择背景图片，选择后背景才会显示"
+						style="margin-bottom: 12px"
+					/>
+					<el-form :label-position="formLabelPos" label-width="180px">
+						<el-form-item label="背景图片">
+							<div class="bg-pick">
+								<el-image
+									v-if="s.cfg.url"
+									:src="s.cfg.url"
+									fit="cover"
+									class="bg-thumb"
+									:preview-src-list="[s.cfg.url]"
+									preview-teleported
+								/>
+								<span v-else class="bg-thumb bg-thumb-empty">未选择</span>
+								<div class="bg-pick-actions">
+									<el-button size="small" @click="pickBgFile(s.key)">上传图片</el-button>
+									<el-button size="small" @click="promptBgUrl(s.key)">图片 URL</el-button>
+									<el-button v-if="s.cfg.url" size="small" text type="danger" @click="clearBgImage(s.key)">移除图片</el-button>
+								</div>
+							</div>
+							<FieldTip text="上传的图片仅保存在本机（自动压缩为最长边 1920 的 JPEG，约几百 KB），不会上传到服务器或博客仓库；也可直接填远程图片 URL。" />
+						</el-form-item>
+						<el-form-item label="模糊半径">
+							<el-slider v-model="s.cfg.blur" :min="0" :max="30" style="max-width: 320px" @input="previewBg(s.key)" @change="persistBg(s.key)" />
+							<FieldTip text="背景图片的模糊程度（px），让前景内容更突出。" />
+						</el-form-item>
+						<el-form-item label="遮罩暗度">
+							<el-slider v-model="s.cfg.dim" :min="0" :max="80" style="max-width: 320px" @input="previewBg(s.key)" @change="persistBg(s.key)" />
+							<FieldTip text="叠加在背景上的黑色遮罩不透明度（%），背景过亮影响阅读时调大。" />
+						</el-form-item>
+					</el-form>
+				</template>
+			</div>
+		</el-card>
+
 		<el-card v-if="isNative && isGithubMode()" shadow="never" class="page-card">
 			<template #header>
 				<div class="card-header">
@@ -209,6 +266,7 @@ import { isNative, isGithubMode, isMobile, serverUrl, serverToken, saveServerCon
 import { activeProject, refreshTheme } from "../stores/project";
 import FieldTip from "../components/FieldTip.vue";
 import { applyColorMode } from "../theme";
+import { applyBackground, currentBgTarget, fileToBackgroundDataUrl, loadBackground, saveBackground, type BackgroundConfig, type BgTarget } from "../background";
 
 /** 表单标签布局：手机端文字在上（top），电脑端保持右侧标签原样 */
 const formLabelPos = computed(() => (isMobile ? "top" : "right"));
@@ -279,6 +337,69 @@ async function onDevBlog(mode: string) {
 	await saveDeviceBlogMode(mode as "auto" | "firefly" | "mizuki");
 	await refreshTheme();
 	ElMessage.success("已切换博客模式");
+}
+
+// ── 背景外观（电脑端 / 手机端各自独立，设备本地，当前设备立即生效）──
+const currentTarget = currentBgTarget();
+const bgDesktop = ref<BackgroundConfig>(loadBackground("desktop"));
+const bgMobile = ref<BackgroundConfig>(loadBackground("mobile"));
+const bgSections = computed(() => [
+	{ key: "desktop" as BgTarget, label: "电脑端壁纸", cfg: bgDesktop.value },
+	{ key: "mobile" as BgTarget, label: "手机端壁纸", cfg: bgMobile.value },
+]);
+
+function sectionCfg(target: BgTarget): BackgroundConfig {
+	return target === "desktop" ? bgDesktop.value : bgMobile.value;
+}
+
+function persistBg(target: BgTarget) {
+	try {
+		saveBackground(sectionCfg(target), target);
+	} catch {
+		ElMessage.error("背景设置保存失败（本机存储空间不足，请更换较小的图片）");
+	}
+}
+
+/** 滑块拖动中：仅实时预览当前设备端的背景，不写存储 */
+function previewBg(target: BgTarget) {
+	if (target === currentTarget) applyBackground(sectionCfg(target));
+}
+
+function pickBgFile(target: BgTarget) {
+	const input = document.createElement("input");
+	input.type = "file";
+	input.accept = "image/*";
+	input.onchange = async () => {
+		const file = input.files?.[0];
+		if (!file) return;
+		try {
+			sectionCfg(target).url = await fileToBackgroundDataUrl(file);
+			persistBg(target);
+			ElMessage.success("背景已保存");
+		} catch (e) {
+			ElMessage.error(e instanceof Error ? e.message : String(e));
+		}
+	};
+	input.click();
+}
+
+async function promptBgUrl(target: BgTarget) {
+	try {
+		const { value } = await ElMessageBox.prompt("填写远程图片地址（https:// 开头），留空则清除当前图片", "背景图片 URL", {
+			inputValue: /^https?:\/\//.test(sectionCfg(target).url) ? sectionCfg(target).url : "",
+			inputPattern: /^(https?:\/\/\S+)?$/,
+			inputErrorMessage: "请填写合法的图片 URL",
+		});
+		sectionCfg(target).url = value.trim();
+		persistBg(target);
+	} catch {
+		/* 取消 */
+	}
+}
+
+function clearBgImage(target: BgTarget) {
+	sectionCfg(target).url = "";
+	persistBg(target);
 }
 const form = ref<AppPreferences>({ uploadConvertAvif: true, closeAction: "exit", port: 5175, colorMode: "light", blogMode: "auto", lanAccess: false, accessToken: "" });
 const runtime = ref<AppRuntime | null>(null);
@@ -434,5 +555,57 @@ async function forceSync() {
 
 .lan-addr {
 	font-family: Consolas, Monaco, monospace;
+}
+
+.bg-section {
+	padding-top: 4px;
+}
+
+.bg-section + .bg-section {
+	border-top: 1px solid var(--el-border-color-lighter);
+	margin-top: 16px;
+	padding-top: 16px;
+}
+
+.bg-section-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.bg-section-title {
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.bg-pick {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.bg-thumb {
+	width: 120px;
+	height: 68px;
+	border-radius: 6px;
+	border: 1px solid var(--el-border-color);
+	background: var(--el-fill-color-light);
+	flex-shrink: 0;
+}
+
+.bg-thumb-empty {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--el-text-color-secondary);
+	font-size: 12px;
+}
+
+.bg-pick-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	align-items: flex-start;
 }
 </style>

@@ -137,9 +137,10 @@ html.dark .wall-item {
 		align-items: stretch;
 	}
 
-	.el-form-item__label {
+	.el-form-item .el-form-item__label {
 		width: auto !important;
 		justify-content: flex-start;
+		text-align: left;
 	}
 
 	/* 工具栏控件占满可用宽度 */
@@ -165,4 +166,41 @@ html.dark .wall-item {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
+}
+
+/* ── 自定义背景（应用设置 → 背景外观；has-bg 类与 CSS 变量由 src/background.ts 控制）── */
+html.has-bg body::before {
+	content: "";
+	position: fixed;
+	/* 四周外扩：模糊后边缘不露底色 */
+	inset: -32px;
+	z-index: -1;
+	background-image:
+		linear-gradient(rgba(0, 0, 0, var(--app-bg-dim, 0.3)), rgba(0, 0, 0, var(--app-bg-dim, 0.3))),
+		var(--app-bg-image);
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	filter: blur(var(--app-bg-blur, 0px));
+	pointer-events: none;
+}
+
+html.has-bg .aside,
+html.has-bg .header {
+	background: rgba(255, 255, 255, 0.72);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+}
+
+html.has-bg.dark .aside,
+html.has-bg.dark .header {
+	background: rgba(28, 29, 32, 0.72);
+}
+
+html.has-bg .el-card {
+	background-color: rgba(255, 255, 255, 0.86);
+}
+
+html.has-bg.dark .el-card {
+	background-color: rgba(30, 31, 34, 0.9);
 }
